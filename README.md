@@ -40,4 +40,3 @@ SystemVerilog 练习代码在另一个仓库：[systemverilog-learning](https://
 
 - 《SystemVerilog 验证 测试平台编写指南》（张春 译）
 - 《UVM 实战》（张强）
-- 《芯片验证漫游指南》（刘斌）
