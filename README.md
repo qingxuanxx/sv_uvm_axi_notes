@@ -6,7 +6,7 @@
 
 ```
 sv_uvm_axi_notes/
-├── sv/            # SystemVerilog 学习笔记
+├── sv学习笔记/         # SystemVerilog 学习笔记
 │   ├── sv_ch2学习笔记.md    # 第2章：数据类型
 │   ├── sv_ch3学习笔记.md    # 第3章：过程语句和子程序
 │   ├── sv_ch4学习笔记.md    # 第4章：连接设计和测试平台
@@ -15,7 +15,7 @@ sv_uvm_axi_notes/
 │   ├── sv_ch7学习笔记.md    # 第7章：线程以及线程间的通信
 │   ├── sv_ch8学习笔记.md    # 第8章：OOP高级技巧
 │   └── sv_ch9学习笔记.md    # 第9章：功能覆盖率
-├── uvm/           # UVM 实战学习笔记
+├── uvm学习笔记/        # UVM 实战学习笔记
 │   ├── uvm_ch1学习笔记.md   # 第1章：UVM概述
 │   ├── uvm_ch2学习笔记.md   # 第2章：UVM基础
 │   ├── uvm_ch3学习笔记.md   # 第3章：UVM组件
@@ -25,7 +25,7 @@ sv_uvm_axi_notes/
 │   ├── uvm_ch7学习笔记.md   # 第7章：UVM配置
 │   ├── uvm_ch8学习笔记.md   # 第8章：UVM测试
 │   └── uvm_ch9学习笔记.md   # 第9章：UVM高级话题
-└── amba/          # AMBA 总线协议学习笔记
+└── axi学习笔记/        # AMBA 总线协议学习笔记
     ├── apb学习笔记.md       # APB 协议
     ├── axi学习笔记.md       # AXI 协议
     ├── axi-lite学习笔记.md  # AXI-Lite 协议
@@ -40,3 +40,5 @@ SystemVerilog 练习代码在另一个仓库：[systemverilog-learning](https://
 
 - 《SystemVerilog 验证 测试平台编写指南》（张春 译）
 - 《UVM 实战》（张强）
+
+> 最后更新：2026-08-11
