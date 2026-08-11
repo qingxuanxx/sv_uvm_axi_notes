@@ -1,2 +1,0 @@
-# 统一 Markdown 行尾为 LF，避免 CRLF/LF 噪音污染 diff
-*.md text eol=lf
