@@ -1,6 +1,6 @@
 # SV、UVM、AMBA 总线学习笔记
 
-数字IC验证学习笔记，涵盖三个方向。
+数字IC验证学习笔记，涵盖 SV、UVM、AMBA 总线 + 数字IC验证校招面经（40篇）。
 
 ## 目录
 
@@ -25,11 +25,12 @@ sv_uvm_axi_notes/
 │   ├── uvm_ch7学习笔记.md   # 第7章：UVM配置
 │   ├── uvm_ch8学习笔记.md   # 第8章：UVM测试
 │   └── uvm_ch9学习笔记.md   # 第9章：UVM高级话题
-└── axi学习笔记/        # AMBA 总线协议学习笔记
+├── axi学习笔记/        # AMBA 总线协议学习笔记
     ├── apb学习笔记.md       # APB 协议
     ├── axi学习笔记.md       # AXI 协议
     ├── axi-lite学习笔记.md  # AXI-Lite 协议
     └── axi-stream学习笔记.md # AXI-Stream 协议
+└── 面经/              # 数字IC验证面试经验（40篇）
 ```
 
 ## 配套代码
