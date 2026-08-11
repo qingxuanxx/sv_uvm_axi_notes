@@ -145,12 +145,12 @@ scoreboard 自己不产生数据，它只负责接收 expected 与 actual，然�
 本章使用一个非常简单的环回 DUT。 输入有效时，DUT 把 <code>rxd</code> 延迟后送到 <code>txd</code>，并把 <code>rx_dv</code> 送到 <code>tx_en</code>。
 ```systemverilog
 module dut (
-    input  logic       clk,
-    input  logic       rst_n,
-    input  logic [7:0] rxd,
-    input  logic       rx_dv,
-    output logic [7:0] txd,
-    output logic       tx_en
+    input  logic       clk,      // 时钟
+    input  logic       rst_n,    // 复位，低有效
+    input  logic [7:0] rxd,      // 接收数据（输入）
+    input  logic       rx_dv,    // 接收数据有效标志
+    output logic [7:0] txd,      // 发送数据（输出）
+    output logic       tx_en     // 发送数据有效标志
 );
     always_ff @(posedge clk) begin
         if (!rst_n) begin
@@ -165,6 +165,8 @@ module dut (
 endmodule
 ```
 这个 DUT 功能简单，因此验证重点不在算法，而在 UVM 平台结构。
+
+> **`always_ff` 与 `always` 的区别**：`always_ff` 是 SystemVerilog 引入的专用时序逻辑块，只能写触发器/寄存器，写错了（比如用阻塞赋值=`=`、加 `#` 时延）编译器会直接报错。功能上等价于 `always @(posedge clk)`，纯属代码规范层面的保护，让工具帮你在编译阶段就拦住低级错误。SV 还有两个对应的：`always_comb`（组合逻辑专用）和 `always_latch`（锁存器专用）。
 
 | 信号 | 方向 | 含义 |
 |------|------|------|
@@ -191,6 +193,38 @@ driver 不应该长期承担：
 - 检查 DUT 输出。
 
 本节前半为了逐步学习，暂时在 driver 内部产生随机数据；加入 sequence 后会移除这部分职责。
+
+> **举例**：假设要发一个 AXI 写请求，driver 本该只管"把信号按时序拍出去"，但本节开头为了简单，让 driver 自己随机生成了地址和数据：
+>
+> ```systemverilog
+> // ❌ 学习阶段的临时写法：driver 自己决定发什么
+> task run_phase(uvm_phase phase);
+>     forever begin
+>         seq_item_port.get_next_item(req);
+>         req.addr = $urandom;      // 随机化由 driver 做了（职责越界）
+>         req.data = $urandom;
+>         vif.cb.addr  <= req.addr; // driver 真正该做的：驱动信号
+>         vif.cb.data <= req.data;
+>         @(vif.cb);
+>         seq_item_port.item_done();
+>     end
+> endtask
+> ```
+>
+> 加入 sequence 之后，随机化移到了 sequence 的 `body()` 里，driver 回归纯粹：
+>
+> ```systemverilog
+> // ✅ 分工正确后：sequence 决定发什么，driver 只管怎么发
+> task run_phase(uvm_phase phase);
+>     forever begin
+>         seq_item_port.get_next_item(req);  // req 已经被 sequence 随机化好了
+>         vif.cb.addr  <= req.addr;          // driver 只做信号驱动
+>         vif.cb.data <= req.data;
+>         @(vif.cb);
+>         seq_item_port.item_done();
+>     end
+> endtask
+> ```
 #### 最简单的 driver
 UVM 中 driver 应派生自 <code>uvm_driver</code>。
 ```systemverilog
@@ -359,6 +393,18 @@ endtask
 - sequence 最清楚激励何时开始、何时结束。
 
 > **记忆**：谁决定“测试内容已经发完”，谁更适合控制 objection。
+
+```mermaid
+sequenceDiagram
+    participant Uvm as UVM phase 调度
+    participant Drv as driver
+    participant Sq as sequence
+    Uvm->>Drv: main_phase 开始
+    Sq->>Uvm: raise_objection  计数器=1，不能结束
+    Sq->>Drv: 发完 10 个事务
+    Sq->>Uvm: drop_objection  计数器=0，可以结束
+    Uvm->>Drv: 结束 main_phase
+```
 ### 2.2.4 加入 virtual interface
 #### 为什么不能写绝对层次路径
 下面的写法把 driver 与 <code>top_tb</code> 层次绑定：
@@ -447,6 +493,23 @@ get 失败后不能继续驱动，因此使用 <code>uvm_fatal</code>。
 - 必要连接不存在。
 - 平台结构与预期不一致。
 
+`uvm_fatal` 参数详解：
+
+| 参数 | 含义 | 类比 |
+|------|------|------|
+| ID | 错误分类标签（随便起，但要能看懂） | 错误码 |
+| message | 具体描述 | 报错内容 |
+
+它和 `$display`、`$error` 最大的区别：
+
+| 语句 | 行为 |
+|------|------|
+| `$display` | 打印完继续跑 |
+| `$error` | 记一笔错误，继续跑 |
+| `uvm_fatal` | 打印完直接结束仿真 ❌ |
+
+**为什么 get 失败要用 fatal 而不是 error？** 拿不到 interface 后驱动全部会崩——与其在信号驱动时冒出难懂的 X 状态错误，不如在 build 阶段就"验尸"：明确指出"vif 没配置，后面没法玩，停吧"。 错误要早爆、爆得清楚。
+
 #### config_db 类型必须匹配
 config_db 是参数化类。 传递 int： <code>uvm_config_db#(int)::set(null, &quot;uvm_test_top&quot;, &quot;packet_num&quot;, 100);</code> 获取 int：
 ```systemverilog
@@ -454,11 +517,15 @@ int packet_num;
 if (!uvm_config_db#(int)::get(this, "", "packet_num", packet_num))
     `uvm_fatal("NO_CFG", "packet_num was not configured")
 ```
-set 和 get 需要同时匹配：
+set 和 get 需要同时匹配（三把钥匙必须同时对上）：
 
-- 参数化类型。
-- 目标路径。
-- 字段名。
+| 匹配项 | set 写什么 | get 写什么 | 对不上会怎样 |
+|--------|------------|------------|--------------|
+| ① 参数化类型 | `#(int)` | `#(int)` | get 返回失败（类型不同就是另一个柜子） |
+| ② 路径 | `"uvm_test_top"` | 从 `this` 出发 | 收不到（除非 set 是 get 的祖先前缀） |
+| ③ 字段名 | `"packet_num"` | `"packet_num"` | get 返回失败 |
+
+任何一个对不上，get 返回 0，然后 `uvm_fatal` 就炸了——所以报错信息写清楚 `"xxx was not configured"`，一眼定位是哪个配置没传对。
 
 #### build_phase
 <code>build_phase</code> 是函数 phase，不消耗仿真时间。 主要用途：
@@ -519,30 +586,31 @@ endclass
 | 创建方式 | <code>type_id::create(name, parent)</code> | <code>type_id::create(name)</code> |
 
 <code>uvm_sequence_item</code> 最终继承自 <code>uvm_object</code>。 因此 transaction 不是 UVM 树结点。
+
 #### driver 把 transaction 串行化
 driver 要把一个 transaction 转换为 interface 上的 byte 流。
 ```systemverilog
 task my_driver::drive_one_pkt(my_transaction tr);
-    byte unsigned data_q[$];
+    byte unsigned data_q[$];                       // 字节队列：串行化缓冲
     // 按协议规定顺序把字段压入队列
     for (int i = 0; i < 6; i++)
-        data_q.push_back(tr.dmac[8*i +: 8]);
+        data_q.push_back(tr.dmac[8*i +: 8]);       // 压入 dmac（目的MAC，6字节）
     for (int i = 0; i < 6; i++)
-        data_q.push_back(tr.smac[8*i +: 8]);
-    data_q.push_back(tr.ether_type[7:0]);
-    data_q.push_back(tr.ether_type[15:8]);
+        data_q.push_back(tr.smac[8*i +: 8]);       // 压入 smac（源MAC，6字节）
+    data_q.push_back(tr.ether_type[7:0]);          // 压入 ether_type（低字节在前）
+    data_q.push_back(tr.ether_type[15:8]);         // 压入 ether_type（高字节）
     foreach (tr.pload[i])
-        data_q.push_back(tr.pload[i]);
+        data_q.push_back(tr.pload[i]);             // 压入 pload（载荷，长度随机）
     for (int i = 0; i < 4; i++)
-        data_q.push_back(tr.crc[8*i +: 8]);
+        data_q.push_back(tr.crc[8*i +: 8]);        // 压入 crc（校验，4字节）
     `uvm_info("DRV", "begin to drive one packet", UVM_LOW)
-    while (data_q.size() != 0) begin
-        @(posedge vif.clk);
-        vif.valid <= 1'b1;
-        vif.data  <= data_q.pop_front();
+    while (data_q.size() != 0) begin               // 队列非空就继续发
+        @(posedge vif.clk);                        // 每个时钟沿发 1 字节
+        vif.valid <= 1'b1;                         // 拉高有效标志
+        vif.data  <= data_q.pop_front();           // 弹出队头驱动到 data
     end
-    @(posedge vif.clk);
-    vif.valid <= 1'b0;
+    @(posedge vif.clk);                            // 再等一拍
+    vif.valid <= 1'b0;                             // 拉低有效标志，发送结束
 endtask
 ```
 这一过程叫 serialization 或 packing。 monitor 执行相反的 deserialization 或 unpacking。
@@ -550,16 +618,16 @@ endtask
 #### 为什么需要 env
 <code>run_test</code> 只创建一个测试顶层。 完整平台却有 driver、monitor、model 和 scoreboard 等多个组件。 因此需要一个容器统一创建这些组件。 UVM 中这个容器通常派生自 <code>uvm_env</code>。
 ```systemverilog
-class my_env extends uvm_env;
-    my_driver drv;
-    `uvm_component_utils(my_env)
+class my_env extends uvm_env;                 // env 容器：负责统一创建平台组件
+    my_driver drv;                            // 声明 driver 句柄
+    `uvm_component_utils(my_env)              // 注册到 factory
     function new(string name = "my_env",
                  uvm_component parent = null);
-        super.new(name, parent);
+        super.new(name, parent);              // 调用父类构造函数
     endfunction
     function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        drv = my_driver::type_id::create("drv", this);
+        super.build_phase(phase);             // 先执行父类 build
+        drv = my_driver::type_id::create("drv", this);  // 创建 driver 并挂到 env 树下
     endfunction
 endclass
 ```
@@ -593,27 +661,27 @@ monitor 与 driver 方向相反。
 monitor 应该是非侵入式的，不能改变 DUT 信号。
 #### monitor 骨架
 ```systemverilog
-class my_monitor extends uvm_monitor;
-    virtual my_if vif;
-    uvm_analysis_port #(my_transaction) ap;
-    `uvm_component_utils(my_monitor)
+class my_monitor extends uvm_monitor;            // monitor：观察 DUT 接口，不驱动信号
+    virtual my_if vif;                            // 接口句柄（从 config_db 获取）
+    uvm_analysis_port #(my_transaction) ap;       // 分析端口：把采集到的包广播出去
+    `uvm_component_utils(my_monitor)              // 注册到 factory
     function new(string name = "my_monitor",
                  uvm_component parent = null);
-        super.new(name, parent);
+        super.new(name, parent);                  // 调用父类构造函数
     endfunction
     function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
+        super.build_phase(phase);                 // 先执行父类 build
         if (!uvm_config_db#(virtual my_if)::get(
-                this, "", "vif", vif))
-            `uvm_fatal("NO_VIF", "monitor vif was not configured")
-        ap = new("ap", this);      // analysis_port 必须先创建
+                this, "", "vif", vif))            // 从 config_db 取 interface
+            `uvm_fatal("NO_VIF", "monitor vif was not configured")  // 取不到直接终止仿真
+        ap = new("ap", this);                     // analysis_port 必须先创建
     endfunction
     task main_phase(uvm_phase phase);
         my_transaction tr;
-        while (1) begin           // monitor 是常驻组件
-            tr = my_transaction::type_id::create("tr");
-            collect_one_pkt(tr);  // 从接口恢复出一个完整包
-            ap.write(tr);         // 广播给后续订阅者
+        while (1) begin                           // monitor 是常驻组件
+            tr = my_transaction::type_id::create("tr");   // 创建空包
+            collect_one_pkt(tr);                  // 从接口恢复出一个完整包
+            ap.write(tr);                         // 广播给后续订阅者
         end
     endtask
 endclass
@@ -712,8 +780,8 @@ class my_model extends uvm_component;
     endfunction
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
-        port = new("port", this);
-        ap   = new("ap",   this);
+        port = new("port", this);   // 创建进货口：从 input monitor 收输入事务
+        ap   = new("ap",   this);   // 创建出货口：向 scoreboard 广播期望事务
     endfunction
     task main_phase(uvm_phase phase);
         my_transaction in_tr;
@@ -744,14 +812,47 @@ monitor 使用 analysis_port 广播事务。 <code>uvm_analysis_port #(my_transa
 - model 发布期望事务。
 - 一份数据同时送多个订阅者。
 
+> **类比**：analysis_port 是"广播喇叭"（推）：喊一声就走，不等接收方处理。 一个货可以同时发给多个订阅者（scoreboard、覆盖率收集器都接同一个喇叭）。
+
 ##### blocking_get_port
 消费者可使用 blocking get 取得事务。 <code>uvm_blocking_get_port #(my_transaction) port;</code> 接收： <code>port.get(tr);                    // 没有数据时阻塞等待</code> 发送端 write 非阻塞，而接收端 get 可能阻塞，因此二者之间通常需要 FIFO。
+
+> **类比**：blocking_get_port 是"收货口"（拉）：没货就一直等，拿到一个处理一个。
+
+两种端口的对比：
+
+| 对比项 | analysis_port | blocking_get_port |
+|--------|---------------|-------------------|
+| 动作 | `ap.write(tr)` | `port.get(tr)` |
+| 方式 | 推（广播，不等） | 拉（阻塞，等货） |
+| 接收方 | 可有多个（订阅） | 通常一个 |
+| 谁在用 | monitor、model（发布方） | model、scoreboard（消费方） |
+
 ##### analysis FIFO
 <code>uvm_tlm_analysis_fifo #(my_transaction) agt_mdl_fifo;</code> 在 env 的 <code>build_phase</code> 中创建： <code>agt_mdl_fifo = new(&quot;agt_mdl_fifo&quot;, this);</code> FIFO 提供：
 
 - <code>analysis_export</code>，连接 analysis_port。
 - <code>blocking_get_export</code>，连接 blocking_get_port。
 - transaction 暂存空间。
+
+FIFO 的两个口对应：
+
+| FIFO 的端口 | 类型 | 接谁 |
+|-------------|------|------|
+| `analysis_export` | 收口（接广播） | monitor 的 `ap` |
+| `blocking_get_export` | 出口（供取货） | model 的 `port` |
+
+> **为什么中间需要 FIFO**：发（write）是推、不等接收方；收（get）是拉、可能处理得慢。 直接相连时，收货方还没取，下一批货又来了 → 丢货。 FIFO 当缓冲仓库：发方把货堆进仓库就走，收方有空再来取，速度不匹配被消化。
+
+```mermaid
+sequenceDiagram
+    participant Mon as input monitor
+    participant Fifo as FIFO（缓冲仓库）
+    participant Mdl as reference model
+
+    Mon->>Fifo: ap.write(tr)   推（广播，不等接收方）
+    Fifo-->>Mdl: port.get(tr)  拉（没货就阻塞等待）
+```
 
 ##### connect_phase
 连接在 <code>connect_phase</code> 中完成。
@@ -765,6 +866,9 @@ function void my_env::connect_phase(uvm_phase phase);
 endfunction
 ```
 <code>connect_phase</code> 的典型执行顺序是 bottom-up。 <code>树叶 -&gt; 中间结点 -&gt; 树根</code> 这使子组件先准备好端口，父组件再连接它们。
+
+> **完整链路**：monitor `ap.write`（推）→ FIFO 暂存 → model `port.get`（拉）→ 处理 → model `ap.write` → scoreboard。
+
 ##### agent 暴露 monitor 端口
 env 不必深入访问 <code>i_agt.mon.ap</code>。 agent 可以对外暴露统一的 <code>ap</code>。
 ```systemverilog
@@ -774,6 +878,8 @@ function void my_agent::connect_phase(uvm_phase phase);
 endfunction
 ```
 由于 agent 的 connect_phase 先于 env 的 connect_phase 执行，env 连接时 <code>i_agt.ap</code> 已有效。
+
+> **意义**：封装。 env 只需连 <code>i_agt.ap</code>，不必深入 <code>i_agt.mon.ap</code>。 以后 agent 内部结构变化，外部连接不用改。
 ### 2.3.6 加入 scoreboard
 #### scoreboard 的两个输入
 scoreboard 需要：
@@ -862,24 +968,26 @@ endtask
 #### 注册字段
 ```systemverilog
 class my_transaction extends uvm_sequence_item;
-    rand bit [47:0] dmac;
-    rand bit [47:0] smac;
-    rand bit [15:0] ether_type;
-    rand byte       pload[];
-    rand bit [31:0] crc;
-    `uvm_object_utils_begin(my_transaction)
-        `uvm_field_int      (dmac,       UVM_ALL_ON)
+    rand bit [47:0] dmac;         // 目的 MAC 地址
+    rand bit [47:0] smac;         // 源 MAC 地址
+    rand bit [15:0] ether_type;   // 以太网类型
+    rand byte       pload[];      // 可变长 payload（数组）
+    rand bit [31:0] crc;          // 校验值
+    `uvm_object_utils_begin(my_transaction)          // 开启字段注册
+        `uvm_field_int      (dmac,       UVM_ALL_ON) // 登记整型字段（bit/logic/int 都用它）
         `uvm_field_int      (smac,       UVM_ALL_ON)
         `uvm_field_int      (ether_type, UVM_ALL_ON)
-        `uvm_field_array_int(pload,      UVM_ALL_ON)
+        `uvm_field_array_int(pload,      UVM_ALL_ON) // 数组字段用 array 版（长度可变，处理方式不同）
         `uvm_field_int      (crc,        UVM_ALL_ON)
-    `uvm_object_utils_end
+    `uvm_object_utils_end                            // 结束注册
     function new(string name = "my_transaction");
         super.new(name);
     endfunction
 endclass
 ```
 使用 begin/end 版本时，中间列出所有需要参与自动操作的字段。 字段类型不同，使用的宏也不同。
+
+> **UVM_ALL_ON 的含义**：标志位，表示该字段的**所有自动操作都启用**（compare/copy/print/pack 全要）。 字段类型与宏的对应：单值整型 → <code>uvm_field_int</code>；数组 → <code>uvm_field_array_int</code>；字符串 → <code>uvm_field_string</code>；对象字段 → <code>uvm_field_object</code>。
 #### 自动方法
 注册后可直接使用：
 ```systemverilog
@@ -906,6 +1014,16 @@ bit_count = tr.unpack_bytes(data_array);
 ```
 打包时先 dmac，再 smac。 如果交换宏顺序，byte 流顺序也可能改变。
 > **警告**：field automation 能减少代码，但协议线序仍必须认真确认。
+
+**举例**：dmac = 48'hAABBCCDDEEFF，smac = 48'h112233445566，ether_type = 16'h0800，按上面注册顺序 pack：
+
+```text
+data_array[0..5]  = AA BB CC DD EE FF   ← dmac（先注册，先打包）
+data_array[6..11] = 11 22 33 44 55 66   ← smac
+data_array[12..13]= 08 00               ← ether_type
+```
+
+如果交换宏顺序（smac 在前），字节流就变成 `11 22 ... 66 AA BB ... FF`——**同一台机器收发都用同一顺序自测没问题，但协议规定"先 dmac 后 smac"时，线上传输就会错乱**。 unpack 按同一注册顺序反向还原，动态数组字段 unpack 前必须先 `new[...]` 分配大小。
 #### field automation 的取舍
 优点：
 
