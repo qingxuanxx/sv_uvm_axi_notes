@@ -1151,18 +1151,25 @@ endtask
 - 仿真表现为“卡住”。
 
 #### sequence-driver 握手
-```text
-sequence        sequencer             driver
-   |                |                    |
-   | request item   |                    |
-   |--------------->|                    |
-   |                |<-- get_next_item --|
-   |<-- grant ------|                    |
-   | randomize/item |                    |
-   |--------------->|---- req ---------->|
-   |                |                    | drive
-   |                |<--- item_done -----|
-   |<-- uvm_do 返回-|                    |
+<code>uvm_do</code> 内部的完整握手分两段：先"请求-授权"（start_item），再"交付-完成"（finish_item）。
+
+```mermaid
+sequenceDiagram
+    participant Seq as sequence
+    participant Sqr as sequencer
+    participant Drv as driver
+
+    Note over Seq,Sqr: 第一段：请求与授权（start_item）
+    Seq->>Sqr: 请求发送 item
+    Drv->>Sqr: get_next_item（driver 来取货）
+    Sqr-->>Seq: 授权（grant）
+
+    Note over Seq,Sqr: 第二段：交付与完成（finish_item）
+    Seq->>Sqr: 随机化后交付 item
+    Sqr-->>Drv: 转发 req
+    Drv->>Drv: 驱动接口信号（drive）
+    Drv->>Sqr: item_done（这单做完了）
+    Sqr-->>Seq: uvm_do 返回
 ```
 <code>uvm_do</code> 通常要等 driver 调用 <code>item_done</code> 后才完成。 这保证 sequence 产生事务的节奏与 driver 实际处理能力同步。
 #### get_next_item 与 try_next_item
@@ -1190,24 +1197,26 @@ end
 ```systemverilog
 task my_env::main_phase(uvm_phase phase);
     my_sequence seq;
-    phase.raise_objection(this);
-    seq = my_sequence::type_id::create("seq");
-    seq.start(i_agt.sqr);         // 明确指定目标 sequencer
-    phase.drop_objection(this);
+    phase.raise_objection(this);                // 举手：我要开始干活（env 知道何时发完）
+    seq = my_sequence::type_id::create("seq");  // 创建 sequence（无 parent！它是 object 不上树）
+    seq.start(i_agt.sqr);                       // 启动，指定目标 sequencer
+    phase.drop_objection(this);                 // 干完收工
 endtask
 ```
 <code>start</code> 的参数告诉 sequence 把 transaction 发给哪个 sequencer。
 ### 2.4.3 default_sequence 的使用
-本书使用 config_db 设置 sequencer 某个 phase 的 default sequence。
+本书使用 config_db 设置 sequencer 某个 phase 的 default sequence。 default_sequence 是"预约剧本"：提前用 config_db 告诉 sequencer"你的 main_phase 一到，自动跑这个 sequence"，不用手工 start。
 ```systemverilog
 uvm_config_db#(uvm_object_wrapper)::set(
-    this,
-    "i_agt.sqr.main_phase",
-    "default_sequence",
-    my_sequence::type_id::get()
+    this,                              // (1)谁放的（env 自己）
+    "i_agt.sqr.main_phase",            // (2)发给谁（路径：sequencer + phase 名！）
+    "default_sequence",                // (3)字段名：固定写法，表示"设默认序列"
+    my_sequence::type_id::get()        // (4)值：sequence 的类型句柄（不是实例！）
 );
 ```
 路径中必须包含目标 phase： <code>i_agt.sqr.main_phase</code> 原因是 sequencer 可在不同任务 phase 启动不同 default sequence。
+
+> **为什么路径带 phase 名**：同一个 sequencer 可在不同 phase 启动不同序列——`i_agt.sqr.main_phase` 挂主测试序列、`i_agt.sqr.reset_phase` 挂复位序列。
 #### 相对路径与绝对路径
 在 env 内 set：
 ```systemverilog
@@ -1228,6 +1237,17 @@ uvm_config_db#(uvm_object_wrapper)::set(
 );
 ```
 因为 top_tb 不是 component，使用 null 和完整路径。
+
+**相对 vs 绝对路径：本质是"从谁的视角写地址"**
+
+| 在哪 set | 第二参数 | 为什么 |
+|------|------|------|
+| env 内（component，有 `this`） | `"i_agt.sqr.main_phase"` | 相对路径：从 env 自己的位置往下找 |
+| top_tb 内（module，无 `this`） | `"uvm_test_top.env.i_agt.sqr.main_phase"` | 完整路径：从树根一路指下去 |
+
+核心规则：
+- 有 `this` 的组件（env/test）→ 用相对路径（相对自己）
+- 没有 `this` 的模块（top_tb）→ 用 `null` + 从 `uvm_test_top` 开始的完整路径
 #### default_sequence 的 objection
 教材 UVM 1.1d 示例使用 <code>starting_phase</code>。
 ```systemverilog
@@ -1258,37 +1278,39 @@ endtask
 - 在 report_phase 汇总测试结果。
 
 #### base_test 示例
+base_test 是所有测试的公共基类：固定平台结构（建 env）+ 挂默认序列 + 结束时汇报结果。 具体测试继承它，只换序列。
 ```systemverilog
-class base_test extends uvm_test;
-    my_env env;
-    `uvm_component_utils(base_test)
+class base_test extends uvm_test;            // test 基类（组件）
+    my_env env;                              // 持有 env 句柄（平台容器）
+    `uvm_component_utils(base_test)          // 注册进 factory
     function new(string name = "base_test",
                  uvm_component parent = null);
         super.new(name, parent);
     endfunction
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
-        env = my_env::type_id::create("env", this);
-        uvm_config_db#(uvm_object_wrapper)::set(
-            this,
-            "env.i_agt.sqr.main_phase",
-            "default_sequence",
-            my_sequence::type_id::get()
+        env = my_env::type_id::create("env", this);   // 创建 env（机箱），挂到自己树下
+        uvm_config_db#(uvm_object_wrapper)::set(      // 给 sequencer 挂默认序列
+            this,                                     // test 自己放
+            "env.i_agt.sqr.main_phase",               // 路径：env 下 sequencer 的 main_phase
+            "default_sequence",                       // 固定字段名
+            my_sequence::type_id::get()               // 挂哪个序列（类句柄）
         );
     endfunction
-    function void report_phase(uvm_phase phase);
+    function void report_phase(uvm_phase phase);      // 仿真结束时汇报
         uvm_report_server server;
         int error_num;
         super.report_phase(phase);
-        server    = get_report_server();
-        error_num = server.get_severity_count(UVM_ERROR);
+        server    = get_report_server();              // 拿到 UVM 的"成绩单服务器"
+        error_num = server.get_severity_count(UVM_ERROR);  // 数整个仿真的 ERROR 数
         if (error_num == 0)
-            $display("TEST CASE PASSED");
+            $display("TEST CASE PASSED");             // 0 错误 = 通过
         else
-            $display("TEST CASE FAILED");
+            $display("TEST CASE FAILED");             // 有错误 = 失败
     endfunction
 endclass
 ```
+> **为什么用 ERROR 数判断结果**：scoreboard 对比失败、断言失败都会报 `uvm_error`——ERROR 总数 == 0 意味着所有检查都通过。
 #### report_phase
 <code>report_phase</code> 在运行 phase 结束后执行。 适合：
 
@@ -1302,16 +1324,16 @@ endclass
 > 只检查 UVM_ERROR 数量可能不够，项目还应考虑 UVM_FATAL、scoreboard 残留和协议超时。
 #### 加入 base_test 后的 UVM 树
 ```text
-uvm_test_top : my_caseN / base_test
-└── env : my_env
-    ├── i_agt : my_agent [ACTIVE]
-    │   ├── sqr : my_sequencer
-    │   ├── drv : my_driver
-    │   └── mon : my_monitor
-    ├── mdl : my_model
-    ├── scb : my_scoreboard
-    └── o_agt : my_agent [PASSIVE]
-        └── mon : my_monitor
+uvm_test_top : my_caseN / base_test    ← 树根（run_test 创建，动态替换 test）
+└── env : my_env                        ← 机箱：平台容器
+    ├── i_agt : my_agent [ACTIVE]       ← 输入 agent：主动发激励
+    │   ├── sqr : my_sequencer          ← 调度台
+    │   ├── drv : my_driver             ← 发信号
+    │   └── mon : my_monitor            ← 采输入（active 也带 monitor！）
+    ├── mdl : my_model                  ← 参考模型：算期望
+    ├── scb : my_scoreboard             ← 计分板：对比
+    └── o_agt : my_agent [PASSIVE]      ← 输出 agent：只看
+        └── mon : my_monitor            ← 采输出（passive 只有 monitor）
 ```
 transaction、sequence 和 FIFO 中暂存的对象不是这棵 component 树的普通结点。
 ### 2.5.2 UVM 中测试用例的启动
@@ -1329,53 +1351,54 @@ base_test
 公共平台放在 base_test 和 env。 每个具体 test 只改变本场景需要的 sequence 和配置。
 #### case0
 ```systemverilog
-class case0_sequence extends uvm_sequence #(my_transaction);
+class case0_sequence extends uvm_sequence #(my_transaction);  // 测试0 的剧本（object）
     my_transaction m_trans;
-    `uvm_object_utils(case0_sequence)
+    `uvm_object_utils(case0_sequence)          // object 注册宏（sequence 不上树）
     function new(string name = "case0_sequence");
         super.new(name);
     endfunction
-    task body();
+    task body();                               // 剧本正文：phase 到时自动执行
         if (starting_phase != null)
-            starting_phase.raise_objection(this);
+            starting_phase.raise_objection(this);  // 举手：我还没发完
         repeat (10)
-            `uvm_do(m_trans)     // 使用 transaction 原有约束
+            `uvm_do(m_trans)     // 使用 transaction 原有约束（发 10 个默认约束的包）
         if (starting_phase != null)
-            starting_phase.drop_objection(this);
+            starting_phase.drop_objection(this);   // 收工
     endtask
 endclass
-class my_case0 extends base_test;
-    `uvm_component_utils(my_case0)
+class my_case0 extends base_test;              // 具体测试：继承 base_test（平台已搭好）
+    `uvm_component_utils(my_case0)             // 注册进 factory（+UVM_TEST_NAME 靠它查找）
     function new(string name = "my_case0",
                  uvm_component parent = null);
         super.new(name, parent);
     endfunction
     function void build_phase(uvm_phase phase);
-        super.build_phase(phase); // 先创建 base_test 中的 env
-        uvm_config_db#(uvm_object_wrapper)::set(
+        super.build_phase(phase); // 先创建 base_test 中的 env（调用父类 build！）
+        uvm_config_db#(uvm_object_wrapper)::set(   // 只做一件事：换默认序列
             this,
-            "env.i_agt.sqr.main_phase",
+            "env.i_agt.sqr.main_phase",            // 还是那个 sequencer 的 main_phase
             "default_sequence",
-            case0_sequence::type_id::get()
+            case0_sequence::type_id::get()         // 换成 case0 的序列
         );
     endfunction
 endclass
 ```
+> **base_test vs 具体 test 的分工**：base_test 建平台 + 挂默认序列；my_case0 只覆盖"挂哪个序列"——平台不动，换剧本即可。
 #### case1 与 uvm_do_with
 ```systemverilog
-class case1_sequence extends uvm_sequence #(my_transaction);
+class case1_sequence extends uvm_sequence #(my_transaction);  // 测试1 的剧本
     my_transaction m_trans;
-    `uvm_object_utils(case1_sequence)
+    `uvm_object_utils(case1_sequence)          // object 注册宏
     task body();
         if (starting_phase != null)
-            starting_phase.raise_objection(this);
+            starting_phase.raise_objection(this);  // 举手
         repeat (10) begin
-            `uvm_do_with(m_trans, {
-                m_trans.pload.size() == 60; // 本 test 固定 payload 长度
+            `uvm_do_with(m_trans, {                 // 带临时约束发包
+                m_trans.pload.size() == 60; // 本 test 固定 payload 长度（只这次生效）
             })
         end
         if (starting_phase != null)
-            starting_phase.drop_objection(this);
+            starting_phase.drop_objection(this);    // 收工
     endtask
 endclass
 ```
@@ -1384,7 +1407,7 @@ endclass
 top_tb 只保留：
 ```systemverilog
 initial begin
-    run_test();                   // 不在源码中写死具体 test 类型
+    run_test();                   // 不在源码中写死具体 test 类型（空参 = 从命令行读）
 end
 ```
 运行 case0： <code>&lt;sim_command&gt; ... +UVM_TEST_NAME=my_case0</code> 运行 case1： <code>&lt;sim_command&gt; ... +UVM_TEST_NAME=my_case1</code> 这样切换 test 不需要修改和重新编译顶层源码。 前提是目标 test 已：
@@ -1392,6 +1415,8 @@ end
 - 被编译。
 - 使用 factory 宏注册。
 - 名字拼写正确。
+
+> **原理**：`run_test()` 空参时读取命令行 `+UVM_TEST_NAME=xxx` 的字符串 → 去 factory 登记簿查找 → 创建对应 test。 所以切换用例 = 改命令行参数，不改代码、不重新编译。
 
 #### 一次 test 的完整执行链
 从命令行启动到比较结果，可以按下面的顺序理解：
@@ -1446,12 +1471,12 @@ sequence -> sequencer -> driver -> DUT
 
 推荐在初次搭建时加入以下结构日志：
 ```systemverilog
-function void base_test::end_of_elaboration_phase(
+function void base_test::end_of_elaboration_phase(  // build+connect 之后自动执行
     uvm_phase phase
 );
     super.end_of_elaboration_phase(phase);
 
-    uvm_top.print_topology();     // 检查实例名、父子关系和 active 结构
+    uvm_top.print_topology();     // 打印整棵 UVM 树：检查实例名、父子关系和 active 结构
 endfunction
 ```
 
@@ -1461,10 +1486,11 @@ function void my_env::connect_phase(uvm_phase phase);
     super.connect_phase(phase);
 
     // 所有 connect 完成后再打印关键路径，便于和 config_db 对照
-    `uvm_info("PATH", i_agt.drv.get_full_name(), UVM_LOW)
-    `uvm_info("PATH", o_agt.mon.get_full_name(), UVM_LOW)
+    `uvm_info("PATH", i_agt.drv.get_full_name(), UVM_LOW)   // 打印 driver 完整路径
+    `uvm_info("PATH", o_agt.mon.get_full_name(), UVM_LOW)   // 打印 monitor 完整路径
 endfunction
 ```
+> 这两段是**调试神器**：树打不出来 = 组件没建/没挂对；路径和你 config_db 里写的对不上 = set 路径写错（最常见 bug）。
 
 如果仿真卡住，按数据流方向排查：
 
