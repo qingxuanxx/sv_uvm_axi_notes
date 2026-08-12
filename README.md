@@ -30,7 +30,7 @@ sv_uvm_axi_notes/
 │   ├── axi学习笔记.md       # AXI 协议
 │   ├── axi-lite学习笔记.md  # AXI-Lite 协议
 │   └── axi-stream学习笔记.md # AXI-Stream 协议
-└── 面经/              # 数字IC验证面试经验（40篇，持续更新）
+└── 面经/              # 数字IC验证面试经验（47篇，持续更新）
 ```
 
 ## 配套代码
