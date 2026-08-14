@@ -308,21 +308,21 @@ endclass
 ```
 component 中使用 field automation 的特殊价值之一，是配合 <code>super.build_phase</code> 自动应用同名配置字段。
 
-> 三个条件缺一不可：**① begin/end 版注册宏；② 字段用 `uvm_field_*` 登记；③ build_phase 调用 `super.build_phase(phase)`**。三者齐备时，config_db 同名配置自动填进成员变量，无需手写 get。
+> 三个条件缺一不可：**[1] begin/end 版注册宏；[2] 字段用 `uvm_field_*` 登记；[3] build_phase 调用 `super.build_phase(phase)`**。三者齐备时，config_db 同名配置自动填进成员变量，无需手写 get。
 
 ```systemverilog
 class my_driver extends uvm_driver #(packet);
-    int pre_num;                            // ① 成员变量
-    `uvm_component_utils_begin(my_driver)   // ② begin/end 版注册宏
-        `uvm_field_int(pre_num, UVM_ALL_ON) // ③ 字段用 uvm_field_* 登记
+    int pre_num;                            // [1] 成员变量
+    `uvm_component_utils_begin(my_driver)   // [2] begin/end 版注册宏
+        `uvm_field_int(pre_num, UVM_ALL_ON) // [3] 字段用 uvm_field_* 登记
     `uvm_component_utils_end
     function void build_phase(uvm_phase phase);
-        super.build_phase(phase);           // ④ super 内部自动 get 同名配置，无需手写 get
+        super.build_phase(phase);           // [4] super 内部自动 get 同名配置，无需手写 get
     endfunction
 endclass
 ```
 
-> test 只需 set：`uvm_config_db#(int)::set(this, "env.i_agt.drv", "pre_num", 100);`  // ⑤ 同名配置，自动填入 pre_num
+> test 只需 set：`uvm_config_db#(int)::set(this, "env.i_agt.drv", "pre_num", 100);`  // [5] 同名配置，自动填入 pre_num
 > 注意：object 无 build_phase，此机制仅 component 可用；自动配置较隐式，重要配置建议显式 get。
 ### 3.1.6 uvm_component 的限制
 component 虽然继承 object，但由于它是树结点，并非所有 object 操作都适合它。
@@ -359,8 +359,8 @@ component 已经被正确创建并拥有 parent 后，理论上可以对字段�
 代码对比：
 ```systemverilog
 // copy：先有目标，再复制
-packet dst = packet::type_id::create("dst");  // ① 先创建目标
-dst.copy(src);                                // ② 把 src 内容复制进 dst
+packet dst = packet::type_id::create("dst");  // [1] 先创建目标
+dst.copy(src);                                // [2] 把 src 内容复制进 dst
 
 // clone：一步到位
 packet dst2;
@@ -588,11 +588,11 @@ class packet extends uvm_sequence_item;
     rand bit [31:0] data;
     rand frame_kind_e kind;
     string source;
-    `uvm_object_utils_begin(packet)
-        `uvm_field_int   (data,   UVM_ALL_ON)
-        `uvm_field_enum  (frame_kind_e, kind, UVM_ALL_ON)
-        `uvm_field_string(source, UVM_ALL_ON)
-    `uvm_object_utils_end
+    `uvm_object_utils_begin(packet)                       // [1] 注册 object + 开始字段登记
+        `uvm_field_int   (data,   UVM_ALL_ON)             // [2] 登记整数字段：copy/compare/print/pack 全自动
+        `uvm_field_enum  (frame_kind_e, kind, UVM_ALL_ON) // [3] 登记枚举字段（必须显式带枚举类型名）
+        `uvm_field_string(source, UVM_ALL_ON)             // [4] 登记字符串字段
+    `uvm_object_utils_end                                 // [5] 结束字段登记
 endclass
 ```
 枚举标量宏需要显式给出枚举类型。
@@ -711,6 +711,9 @@ bit_count = tr2.unpack_bytes(bytes);
 ```systemverilog
 packet copy_tr;
 $cast(copy_tr, tr.clone());
+//  [1] tr.clone()  → 复制 tr，造出新 packet（但以 uvm_object 句柄返回）
+//  [2] $cast(...)  → 把 uvm_object 句柄转回 packet 类型，存入 copy_tr
+//  [3] 之后 copy_tr.dmac 就能用了 ✅
 ```
 clone 返回 <code>uvm_object</code> 句柄，所以常需要 <code>$cast</code> 转回具体类型。
 ### 3.3.3 field automation 机制中标志位的使用
@@ -736,6 +739,15 @@ endclass
 - 可以被 copy。
 - 可以参与 compare。
 - 不会被 pack 到 DUT 接口数据流。
+
+> `UVM_ALL_ON | UVM_NOPACK` 的叠加效果：
+
+```text
+UVM_ALL_ON  = copy ✅ + compare ✅ + print ✅ + pack ✅
+UVM_NOPACK  = 把 pack 关掉
+─────────────────────────── 叠加结果 ───────────────────────────
+crc_err     = copy ✅ + compare ✅ + print ✅ + pack ❌
+```
 
 #### 常用 field 标志
 
@@ -775,21 +787,20 @@ class packet extends uvm_sequence_item;
     rand byte       payload[];
     rand bit [31:0] crc;
     rand bit        is_vlan;      // 控制是否包含 VLAN 字段
-    `uvm_object_utils_begin(packet)
-        `uvm_field_int(dmac, UVM_ALL_ON)
-        `uvm_field_int(smac, UVM_ALL_ON)
-        if (is_vlan) begin
+    `uvm_object_utils_begin(packet)                    // [1] 注册 + 开始字段登记
+        `uvm_field_int(dmac, UVM_ALL_ON)               // [2] 登记 dmac（两种帧都有）
+        `uvm_field_int(smac, UVM_ALL_ON)               // [3] 登记 smac（两种帧都有）
+        if (is_vlan) begin                             // [4] 只有 VLAN 帧才登记下面 4 个 VLAN 字段
             `uvm_field_int(vlan_info1, UVM_ALL_ON)
             `uvm_field_int(vlan_info2, UVM_ALL_ON)
             `uvm_field_int(vlan_info3, UVM_ALL_ON)
             `uvm_field_int(vlan_info4, UVM_ALL_ON)
-        end
-        `uvm_field_int      (ether_type, UVM_ALL_ON)
-        `uvm_field_array_int(payload,    UVM_ALL_ON)
-        `uvm_field_int      (crc,        UVM_ALL_ON)
-        // 控制字段本身不属于协议包
-        `uvm_field_int(is_vlan, UVM_ALL_ON | UVM_NOPACK)
-    `uvm_object_utils_end
+        end                                            // [5] 条件结束
+        `uvm_field_int      (ether_type, UVM_ALL_ON)   // [6] 登记 ether_type
+        `uvm_field_array_int(payload,    UVM_ALL_ON)   // [7] 登记 payload（动态数组用 array 宏）
+        `uvm_field_int      (crc,        UVM_ALL_ON)   // [8] 登记 crc
+        `uvm_field_int(is_vlan, UVM_ALL_ON | UVM_NOPACK) // [9] 控制开关：全自动但 NOPACK（不进数据流）
+    `uvm_object_utils_end                              // [10] 结束字段登记
 endclass
 ```
 普通帧： <code>assert(tr.randomize() with { is_vlan == 0; });</code> VLAN 帧： <code>assert(tr.randomize() with { is_vlan == 1; });</code> 优点：
