@@ -30,6 +30,10 @@ sv_uvm_axi_notes/
 │   ├── axi学习笔记.md       # AXI 协议
 │   ├── axi-lite学习笔记.md  # AXI-Lite 协议
 │   └── axi-stream学习笔记.md # AXI-Stream 协议
+├── 面试_八股/          # 面试八股积累（SV/UVM/AXI，持续更新）
+│   ├── sv_八股.md      # SV 八股
+│   ├── uvm_八股.md     # UVM 八股（含 config_db 值拷贝面试题等）
+│   └── axi_八股.md     # AXI 八股
 └── 面经/              # 数字IC验证面试经验（47篇，持续更新）
 ```
 

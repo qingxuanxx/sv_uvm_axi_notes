@@ -157,7 +157,7 @@ sequence：
 | 名称 | 含义 |
 |------|------|
 | config object | 用户定义的配置对象，把多个参数组织在一个类中 |
-| config_db | UVM 提供的配置传递机制 |
+| config_db | UVM 提供的**传递配置的机制** |
 
 典型做法：
 ```systemverilog
@@ -307,10 +307,30 @@ class my_driver extends uvm_driver #(packet);
 endclass
 ```
 component 中使用 field automation 的特殊价值之一，是配合 <code>super.build_phase</code> 自动应用同名配置字段。
+
+> 三个条件缺一不可：**① begin/end 版注册宏；② 字段用 `uvm_field_*` 登记；③ build_phase 调用 `super.build_phase(phase)`**。三者齐备时，config_db 同名配置自动填进成员变量，无需手写 get。
+
+```systemverilog
+class my_driver extends uvm_driver #(packet);
+    int pre_num;                            // ① 成员变量
+    `uvm_component_utils_begin(my_driver)   // ② begin/end 版注册宏
+        `uvm_field_int(pre_num, UVM_ALL_ON) // ③ 字段用 uvm_field_* 登记
+    `uvm_component_utils_end
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);           // ④ super 内部自动 get 同名配置，无需手写 get
+    endfunction
+endclass
+```
+
+> test 只需 set：`uvm_config_db#(int)::set(this, "env.i_agt.drv", "pre_num", 100);`  // ⑤ 同名配置，自动填入 pre_num
+> 注意：object 无 build_phase，此机制仅 component 可用；自动配置较隐式，重要配置建议显式 get。
 ### 3.1.6 uvm_component 的限制
 component 虽然继承 object，但由于它是树结点，并非所有 object 操作都适合它。
 #### clone 不适合 component
-object 的 <code>clone()</code> 可以理解为： <code>clone = new + copy</code> object 示例：
+object 的 <code>clone()</code> 可以理解为： <code>clone = new + copy</code>（新建一个对象，再把内容复制过去）
+
+object 示例：
+
 ```systemverilog
 packet p1;
 packet p2;
@@ -320,19 +340,40 @@ $cast(p2, p1.clone());            // clone 自己分配目标对象
 ```
 component clone 存在问题：
 
-- 新 component 的 parent 无法正确指定。
-- 可能破坏 UVM 树的唯一名字约束。
-- 无法明确应在哪个 build 阶段挂到树上。
+| 问题 | 解释 |
+|------|------|
+| parent 无法指定 | clone 是"自己分配新对象"，过程中没人给它传 parent → 新组件挂到哪？ |
+| 名字可能冲突 | 树里每个结点名字要唯一，clone 出的新对象名字无法保证唯一 |
+| 没有明确挂树时机 | component 必须在 build_phase 阶段挂到树上，clone 发生在任意时刻，破坏生命周期 |
 
-因此不要 clone component。
+因此 **object 可以随便复制，component 是"树上的固定设备"，不能随便克隆**——树的规则（parent、唯一名、build 时机）不允许。
 #### copy 与 clone 的区别
 
 | 操作 | 目标对象是否必须先创建 | 是否分配新对象 |
 |------|------------------------|----------------|
-| <code>copy</code> | 是 | 否 |
-| <code>clone</code> | 否 | 是 |
+| <code>copy</code> | ✅ 要（先 `new` 出目标） | 否（复制到已有对象里） |
+| <code>clone</code> | ❌ 不用（clone 自己分配） | 是（新建一个） |
 
 component 已经被正确创建并拥有 parent 后，理论上可以对字段执行 copy；但不要用 copy 复制结构关系。
+
+代码对比：
+```systemverilog
+// copy：先有目标，再复制
+packet dst = packet::type_id::create("dst");  // ① 先创建目标
+dst.copy(src);                                // ② 把 src 内容复制进 dst
+
+// clone：一步到位
+packet dst2;
+$cast(dst2, src.clone());                     // clone 内部自己 new + copy
+```
+
+> 记忆：copy 是"填进已有的盒子"，clone 是"自动造个新盒子再填"。后者 = 前者 + new。
+
+对 component 的态度：
+
+- clone：❌ 禁止（树的问题）
+- copy：⚠️ 可以复制字段，但不要用 copy 复制结构关系（parent 这种"结构"不能靠 copy 建立）
+
 #### 同一父结点下名字必须唯一
 错误示例：
 ```systemverilog
