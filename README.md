@@ -32,7 +32,7 @@ sv_uvm_axi_notes/
 │   └── axi-stream学习笔记.md # AXI-Stream 协议
 ├── 面试_八股/          # 面试八股积累（SV/UVM/AXI，持续更新）
 │   ├── sv_八股.md      # SV 八股
-│   ├── uvm_八股.md     # UVM 八股（含 config_db 值拷贝面试题等）
+│   ├── uvm_八股.md     # UVM 八股
 │   └── axi_八股.md     # AXI 八股
 └── 面经/              # 数字IC验证面试经验（47篇，持续更新）
 ```
@@ -46,4 +46,4 @@ SystemVerilog 练习代码在另一个仓库：[systemverilog-learning](https://
 - 《SystemVerilog 验证 测试平台编写指南》（张春 译）
 - 《UVM 实战》（张强）
 
-> 最后更新：2026-08-12
+> 最后更新：2026-08-14
