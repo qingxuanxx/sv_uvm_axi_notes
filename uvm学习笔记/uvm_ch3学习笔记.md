@@ -1191,7 +1191,10 @@ function void my_driver::build_phase(uvm_phase phase);
     `uvm_info("PATH", get_full_name(), UVM_LOW)
 endfunction
 ```
+`get_full_name()` = "我在树上的完整地址是什么？" 会返回从根到自己的整条路径，
+
 可能输出： <code>uvm_test_top.env.i_agt.drv</code>
+
 #### 路径由实例名决定
 <code>drv = my_driver::type_id::create(&quot;driver&quot;, this);</code> 变量名仍是 <code>drv</code>，但路径最后一段是 <code>driver</code>。
 ```text
@@ -1199,69 +1202,102 @@ endfunction
 UVM 路径：uvm_test_top.env.i_agt.driver
 ```
 推荐让变量名和实例名一致： <code>drv = my_driver::type_id::create(&quot;drv&quot;, this);</code> 这样代码和日志更容易对应。
+
+| | 是什么 | 出现在哪 |
+|---|---|---|
+| 变量名 <code>drv</code> | class 里的成员变量 | 代码访问（<code>drv.xxx</code>） |
+| 实例名 <code>"driver"</code> | create 时传的字符串 | UVM 路径 / 日志 / config_db |
+
+create 传的字符串才是路径的一部分——**变量叫什么不影响路径**。
+
 #### uvm_top 的名字通常不显示
-<code>uvm_top</code> 对应根实例，但常规完整路径从 <code>uvm_test_top</code> 开始显示。 因此 config_db 绝对路径通常写： <code>uvm_test_top.env.i_agt.drv</code> 而不是显式加入 <code>__top__</code>。
+
+真正的树根是 <code>uvm_top</code>（<code>uvm_root</code>）。但常规完整路径从 <code>uvm_test_top</code> 开始显示：
+
+```text
+实际结构：uvm_top → uvm_test_top → env → i_agt → drv
+显示路径：uvm_test_top.env.i_agt.drv     ← uvm_top 被省略了
+```
+
+所以 config_db 写绝对路径时：
+
+```systemverilog
+// ✅ 正确写法：从 uvm_test_top 开始
+uvm_config_db#(...)::set(null, "uvm_test_top.env.i_agt.drv", "vif", input_if);
+
+// ❌ 不用写 __top__ 之类的前缀
+```
+
+原因：<code>uvm_top</code> 是 UVM 框架自己的根，固定不变；<code>uvm_test_top</code> 才是你的测试起点，路径写它就够了。
+
 ### 3.5.2 set 与 get 函数的参数
 #### set
 ```systemverilog
 uvm_config_db#(int)::set(
-    this,                         // 起始上下文
-    "env.i_agt.drv",              // 相对 this 的目标路径
-    "pre_num",                    // 字段键名
-    100                           // 配置值
+    this,                         // [1] 起始上下文
+    "env.i_agt.drv",              // [2] 相对 this 的目标路径
+    "pre_num",                    // [3] 字段键名
+    100                           // [4] 配置值
 );
 ```
 四个参数：
 
-| 参数 | 含义 |
-|------|------|
-| 1 | context component |
-| 2 | 相对 context 的实例路径 |
-| 3 | field name/key |
-| 4 | value |
+| 参数 | 含义 | 类比 |
+|------|------|------|
+| 1 | context component | 寄件人所在位置 |
+| 2 | 相对 context 的实例路径 | 收件地址 |
+| 3 | field name/key | 包裹上的标签 |
+| 4 | value | 包裹内容 |
 
-参数 1 与参数 2 联合确定目标范围。
+参数 1 与参数 2 **联合**确定目标范围——`this`（test）+ `"env.i_agt.drv"` = "从 test 出发，往下找到 env.i_agt.drv"。
 #### get
 ```systemverilog
 int pre_num;
 if (!uvm_config_db#(int)::get(
-        this,                     // 当前 driver
-        "",                       // 当前实例自身
-        "pre_num",                // 必须与 set 的 key 一致
-        pre_num                   // 写入此变量
+        this,                     // [1] 当前 driver
+        "",                       // [2] 当前实例自身
+        "pre_num",                // [3] 必须与 set 的 key 一致
+        pre_num                   // [4] 写入此变量
     )) begin
     `uvm_fatal("NO_CFG", "pre_num was not configured")
 end
 ```
+get 的第二个参数 <code>""</code> 表示"当前实例自身"（不用往上找别人）。get 有返回值：1=成功，0=失败，所以用 <code>if (!get(...))</code> 检查，失败通常 <code>uvm_fatal</code>（配置没到位，平台跑不了）。
 #### set/get 必须匹配的内容
 
-| 项目 | 要求 |
-|------|------|
-| 参数化类型 | 必须兼容，例如两边都用 int |
-| 路径 | set 的目标必须覆盖 get 所在实例 |
-| field name | 字符串必须一致 |
-| 时间 | get 之前必须已有有效 set |
+| 项目 | 要求 | 对不上会怎样 |
+|------|------|--------------|
+| 参数化类型 | 必须兼容，例如两边都用 int | get 返回 0（类型不同=另一个柜子） |
+| 路径 | set 的目标必须覆盖 get 所在实例 | 收不到（除非 set 是 get 祖先前缀） |
+| field name | 字符串必须一致 | get 返回 0 |
+| 时间 | get 之前必须已有有效 set | 取不到（先寄后收） |
+
+**四个条件任一不满足 → get 失败**。
 
 get 第四个变量名不必与 field name 相同，但保持同名更易维护。
 #### null 等价于 uvm_root::get()
-在 top_tb 中没有 <code>this</code> component，可写：
+在 top_tb 中没有 <code>this</code> component（module 不是 component），可写：
 ```systemverilog
 uvm_config_db#(virtual my_if)::set(
-    null,
-    "uvm_test_top.env.i_agt.drv",
-    "vif",
-    input_if
+    null,                            // [1] context：top_tb 没有 this，用 null
+    "uvm_test_top.env.i_agt.drv",    // [2] 完整路径（从 uvm_test_top 开始）
+    "vif",                           // [3] 字段名
+    input_if                         // [4] 配置值：真实 interface 实例
 );
 ```
 可以理解为：
 ```systemverilog
 uvm_config_db#(virtual my_if)::set(
-    uvm_root::get(),
-    "uvm_test_top.env.i_agt.drv",
-    "vif",
-    input_if
+    uvm_root::get(),                 // [1] null 的等价写法：全局根
+    "uvm_test_top.env.i_agt.drv",    // [2] 完整路径（从 uvm_test_top 开始）
+    "vif",                           // [3] 字段名
+    input_if                         // [4] 配置值：真实 interface 实例
 );
 ```
+规律：
+
+- 有 <code>this</code> 的组件（test/env/driver）→ context 用 this，路径写**相对路径**。
+- 没 <code>this</code> 的 module（top_tb）→ context 用 null，路径写**完整路径**（从 uvm_test_top 开始）。
 #### 灵活拆分 context 和相对路径
 以下目标可表示同一个 driver：
 ```systemverilog
@@ -1280,30 +1316,32 @@ uvm_config_db#(int)::set(
     100
 );
 ```
-推荐选择最清晰、最符合当前代码层次的写法。
+两条路径指向同一个 driver——context 不同，相对路径就不同（env 出发少走一级：env → i_agt → drv），但最终目标一致。
+
+推荐选择最清晰、最符合当前代码层次的写法：在 env 里就用 env 出发，在 test 里就用 test 出发。
 ### 3.5.3 省略 get 语句
 component 字段使用 field automation 注册后，<code>super.build_phase</code> 可自动应用同名配置。
 ```systemverilog
 class my_driver extends uvm_driver #(packet);
     int pre_num;
-    `uvm_component_utils_begin(my_driver)
-        `uvm_field_int(pre_num, UVM_ALL_ON)
+    `uvm_component_utils_begin(my_driver)          // [1] 条件[1]：begin/end 版注册宏
+        `uvm_field_int(pre_num, UVM_ALL_ON)        // [2] 条件[2]：字段登记
     `uvm_component_utils_end
     function new(string name = "my_driver",
                  uvm_component parent = null);
         super.new(name, parent);
-        pre_num = 3;              // 本地默认值
+        pre_num = 3;                               // [3] 本地默认值（super 前）
     endfunction
     function void build_phase(uvm_phase phase);
         `uvm_info(
             "CFG",
-            $sformatf("before super: pre_num=%0d", pre_num),
+            $sformatf("before super: pre_num=%0d", pre_num),   // [4] super 前打印：3
             UVM_LOW
         )
-        super.build_phase(phase); // 自动应用匹配配置字段
+        super.build_phase(phase);                  // [5] 条件[3]：super 自动 get 同名配置，覆盖 pre_num
         `uvm_info(
             "CFG",
-            $sformatf("after super: pre_num=%0d", pre_num),
+            $sformatf("after super: pre_num=%0d", pre_num),    // [6] super 后打印：100
             UVM_LOW
         )
     endfunction
@@ -1375,7 +1413,7 @@ uvm_test_top     高层，优先级高
 - 具体 test 提供场景级覆盖。
 
 #### context 被写成 root 时会发生什么
-如果 test 和 env 都用 <code>uvm_root::get()</code> 作为 context，它们在资源层次上看起来来自同一高层。 此时更可能由写入时间决定结果。 build_phase 自顶向下：
+如果 test 和 env 都用 <code>uvm_root::get()</code> 作为 context，它们在资源层次上看起来来自同一高层。 此时更可能由**写入时间**决定结果。 build_phase 自顶向下：
 ```text
 test build 先执行
 env build 后执行
@@ -1383,7 +1421,7 @@ env build 后执行
 env 后写入的值可能覆盖 test 的值。 所以教材建议：
 > 在 component 内调用 set 时，第一参数尽量使用 this；只有无法获得 component this 的 top_tb 才使用 null/root。
 ### 3.5.5 同一层次的多重设置
-当两次 set 来自同一层次时，通常后写入者生效。
+当两次 set 来自同一层次时，通常**后写入者生效**。
 ```systemverilog
 uvm_config_db#(int)::set(
     this, "env.i_agt.drv", "pre_num", 100
@@ -1447,12 +1485,14 @@ env
 示例：
 ```systemverilog
 uvm_config_db#(int)::set(
-    get_parent(),                 // scoreboard 的 parent 是 env
-    "i_agt.drv",
+    get_parent(),                 // scoreboard 的 parent 是 env（先爬到共同祖先）
+    "i_agt.drv",                  // 再从 env 往下指到 driver
     "pre_num",
     200
 );
 ```
+原理：scoreboard 用 `get_parent()` 先拿到共同祖先 env，再以 env 为 context 指到 `i_agt.drv`——绕了一圈实现"兄弟间传递"。
+
 风险：
 
 - 同级 component 的 build_phase 顺序不应作为设计依赖。
@@ -1497,7 +1537,7 @@ uvm_config_db#(virtual my_if)::set(
 ```systemverilog
 uvm_config_db#(virtual my_if)::set(
     null,
-    "uvm_test_top.env.i_agt*",
+    "uvm_test_top.env.i_agt*",  // "i_agt*" 匹配 i_agt 及其所有后代
     "vif",
     input_if
 );
@@ -1517,25 +1557,36 @@ uvm_config_db#(virtual my_if)::set(
 - 多个通配符配置叠加后优先级难判断。
 - 调试 config 泄漏更加困难。
 
-推荐： <code>&quot;uvm_test_top.env.i_agt*&quot;</code> 不推荐过宽： <code>&quot;*i_agt*&quot;</code>
-> **原则**：通配符要尽可能保留稳定的路径前缀。
+推荐与不推荐的写法对比：
+
+```systemverilog
+// ✅ 推荐：保留稳定前缀
+"uvm_test_top.env.i_agt*"
+
+// ❌ 不推荐：前缀太宽
+"*i_agt*"
+```
+
+- <code>"uvm_test_top.env.i_agt*"</code>：从根开始写，只有末尾是通配 → 匹配范围可控。
+- <code>"*i_agt*"</code>：通配符在开头 → 匹配范围太大，可能误伤路径中任何含 i_agt 的组件。
+
+> **原则**：通配符要尽可能保留稳定的路径前缀——前缀越具体，误伤越少。
 ### 3.5.8 check_config_usage
 config_db 路径是字符串。 拼写错误仍是合法字符串，编译器不会报错。 例如：
 ```systemverilog
-// 错把 i_agt 写成 i_atg
 uvm_config_db#(int)::set(
     this,
-    "env.i_atg.drv",
+    "env.i_atg.drv",              // 错把 i_agt 写成 i_atg
     "pre_num",
     7
 );
 ```
-driver 永远读不到该值，但 set 本身不会失败。
+driver 永远读不到该值（路径对不上），但 set 本身不报错（字符串 "env.i_atg.drv" 是合法的，编译器不会检查它指向哪里）。
 #### 检查写入但未读取的配置
 ```systemverilog
 function void my_test::connect_phase(uvm_phase phase);
     super.connect_phase(phase);
-    check_config_usage();
+    check_config_usage();           // 检查：有没有写了没人读的配置？
 endfunction
 ```
 为什么放在 connect_phase：
@@ -1543,8 +1594,6 @@ endfunction
 - 大多数普通配置已在 build_phase get。
 - build 已结束，可以检查未消费资源。
 
-#### 注意 default_sequence 的假阳性
-default sequence 配置可能在 main_phase 才被 sequencer 获取。 若 connect_phase 就调用 <code>check_config_usage()</code>，它可能被报告为“写入但尚未读取”。 因此分析结果时要结合配置的预期读取阶段。
 ### 3.5.9 set_config 与 get_config
 教材还介绍了旧式的 <code>set/get_config_int</code>、<code>set/get_config_string</code> 和 <code>set/get_config_object</code>。它们在旧版本中可与相应类型的 config_db 操作互通，但支持的类型较少。
 ```systemverilog
