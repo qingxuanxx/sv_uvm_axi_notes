@@ -2,9 +2,6 @@
 
 > 数字IC验证（Digital IC Verification）学习笔记：SystemVerilog、UVM、AMBA 总线协议 + 面试八股 + 校招面经。
 
-![GitHub stars](https://img.shields.io/github/stars/qingxuanxx/sv_uvm_axi_notes)
-![GitHub license](https://img.shields.io/github/license/qingxuanxx/sv_uvm_axi_notes)
-
 ## 内容概览
 
 - 📘 **SystemVerilog 学习笔记**：数据类型、随机化、线程通信、面向对象、功能覆盖率（第 2~9 章）
