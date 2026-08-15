@@ -4,7 +4,6 @@
 
 ![GitHub stars](https://img.shields.io/github/stars/qingxuanxx/sv_uvm_axi_notes)
 ![GitHub license](https://img.shields.io/github/license/qingxuanxx/sv_uvm_axi_notes)
-![visitors](https://visitor-badge.glitch.me/badge?page_id=qingxuanxx.sv_uvm_axi_notes)
 
 ## 内容概览
 
@@ -12,8 +11,8 @@
 - 🚀 **UVM 实战学习笔记**：平台搭建、UVM 基础、TLM、phase、sequence、寄存器模型、factory、可重用性（第 1~9 章）
 - 🔌 **AMBA 总线协议**：AXI、AXI-Lite、AXI-Stream、APB
 - 🎯 **面试八股**：SV / UVM / AXI 高频考点（持续积累）
-- 📄 **面试书笔记**：《Cracking Digital VLSI Verification Interview》10 章中文整理
-- 📝 **校招面经**：50 篇数字IC验证面试经验
+- 📄 **面试书笔记**：《Cracking Digital VLSI Verification Interview》整理
+- 📝 **校招面经**：50 篇数字IC验证面试经验（持续更新）
 
 ## 目录
 
