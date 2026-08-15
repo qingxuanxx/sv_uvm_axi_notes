@@ -8,6 +8,7 @@
 
 1. [uvm_object 与 uvm_component 的区别](#1-uvm_object-与-uvm_component-的区别)
 2. [config_db 完成 set 后，若源变量发生变化，get 到的值是否同步更新？](#2-config_db-完成-set-后若源变量发生变化get-到的值是否同步更新)
+3. [uvm_info 的消息等级分类](#3-uvm_info-的消息等级分类)
 
 ---
 
@@ -76,5 +77,43 @@ uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_
 |----------|----------|------------------------------|
 | 基础类型（int/bit/string/enum） | 值拷贝 | ❌ 不变 |
 | object 类型（config object） | 句柄引用 | ✅ 会变（同一个对象） |
+
+---
+
+## 3. uvm_info 的消息等级分类
+
+### 题目来源
+
+合见工软 · 数字IC验证 · 校招 · 一面（原题）
+
+### 考点
+
+- UVM report 机制：verbosity（冗余度）等级
+- verbosity 与 severity 的区分
+
+### 参考答案
+
+`uvm_info` 的消息等级就是 UVM 的 verbosity 等级，从低到高一共有六档：**NONE 是 0，LOW 是 100，MEDIUM 是 200，HIGH 是 300，FULL 是 400，DEBUG 是 500**。
+
+| 级别 | 数值 |
+|------|------|
+| UVM_NONE | 0 |
+| UVM_LOW | 100 |
+| UVM_MEDIUM | 200 |
+| UVM_HIGH | 300 |
+| UVM_FULL | 400 |
+| UVM_DEBUG | 500 |
+
+显示规则是：**消息的等级小于等于当前阈值才显示**。默认阈值是 MEDIUM，所以 LOW 和 MEDIUM 能看到，HIGH 及以上默认看不到。
+
+想让更详细的日志显示出来，本质就是把阈值调高，三种办法：
+
+1. **代码里调**：写 `set_report_verbosity_level(UVM_HIGH)` 只影响当前组件；加个 `_hier` 写成 `..._level_hier(UVM_HIGH)` 就变成"我和我下面所有子组件都调"。注意要等组件都建好（connect_phase 之后）才能用路径去设置。
+
+2. **按 ID 调**：`set_report_id_verbosity("DRV_DATA", UVM_HIGH)` 只让标签叫 "DRV_DATA" 的日志变详细，其他日志不变。日志太多的时候用这个精准找某条消息。
+
+3. **命令行调**：启动命令加 `+UVM_VERBOSITY=UVM_HIGH` 就全局生效，不用改代码，临时调试最方便。
+
+**别混淆**：verbosity 管"消息写得有多详细"，severity 管"消息有多严重"（INFO/WARNING/ERROR/FATAL 四档），是两个不同的维度。
 
 ---

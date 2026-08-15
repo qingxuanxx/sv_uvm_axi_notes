@@ -822,9 +822,9 @@ UVM report 机制把日志分成三个正交维度：
 
 | 维度 | 回答的问题 |
 |------|------------|
-| severity | 这条消息有多严重 |
+| severity | 这条消息有多严重（INFO/WARNING/ERROR/FATAL） |
 | verbosity | 这条 info 有多详细 |
-| action | 消息出现后执行什么行为 |
+| action | 消息出现后执行什么行为（打印/计数/退出） |
 
 另外还可以按 ID、component 路径和日志文件进行控制。
 ### 3.4.1 设置打印信息的冗余度阈值
@@ -845,14 +845,27 @@ UVM report 机制把日志分成三个正交维度：
 消息 verbosity > 当前阈值  -> 不显示
 ```
 默认阈值通常为 <code>UVM_MEDIUM</code>。 因此 LOW 和 MEDIUM 显示，HIGH 通常不显示。
+
+```text
+uvm_info(..., UVM_LOW)    -> 100 ≤ 200 -> 显示 ✅
+uvm_info(..., UVM_MEDIUM) -> 200 ≤ 200 -> 显示 ✅
+uvm_info(..., UVM_HIGH)   -> 300 > 200 -> 不显示 ❌（这就是为什么 HIGH 日志"看不见"）
+```
+
 #### 查询当前阈值
 ```systemverilog
 int level;
-level = env.i_agt.drv.get_report_verbosity_level();
+level = env.i_agt.drv.get_report_verbosity_level();  // 查 driver 当前的阈值
 ```
+`get_report_verbosity_level()` = "我现在阈值是多少？" ，返回一个整数（100/200/300...）。
+
 #### 只设置单个 component
-<code>env.i_agt.drv.set_report_verbosity_level(UVM_HIGH);</code> 只影响 driver。
-#### 递归设置 component 子树
+
+<code>env.i_agt.drv.set_report_verbosity_level(UVM_HIGH);</code> 
+
+只影响 driver 一个组件。agent 里的 sqr、mon 不受影响。
+
+#### 递归设置 component 子树（set + _hier）
 <code>env.i_agt.set_report_verbosity_level_hier(UVM_HIGH);</code> 影响：
 
 - i_agt。
@@ -875,10 +888,28 @@ env.i_agt.set_report_id_verbosity_hier(
     UVM_HIGH
 );
 ```
-#### 命令行设置
-<code>&lt;sim_command&gt; +UVM_VERBOSITY=UVM_HIGH</code> 也可使用： <code>&lt;sim_command&gt; +UVM_VERBOSITY=HIGH</code> 命令行适合临时增加调试日志，不必修改源码。
+#### 命令行设置（不改代码）
+<code>&lt;sim_command&gt; +UVM_VERBOSITY=UVM_HIGH</code> 
+
+全局生效，等价于把所有组件的阈值调到 HIGH。适合临时调试：
+
+- 不用改源码、不用重新编译
+- 调完去掉参数重跑就恢复默认
+- `+UVM_VERBOSITY=UVM_HIGH` 和 `+UVM_VERBOSITY=HIGH` 等价（可省略 UVM_ 前缀）
+
 #### 为什么常在 connect_phase 设置
-如果需要通过 <code>env.i_agt.drv</code> 访问后代 component，这些实例必须已经在 build_phase 创建完成。 因此常在 connect_phase 或之后设置层次化 report 策略。 如果只设置当前 component 自己，可以更早调用。
+
+因为设置的目标组件可能还没创建出来：
+
+```text
+build_phase：组件被创建（drv、mon 诞生）
+connect_phase：所有组件已创建完毕 ✅ 可以按路径访问
+```
+
+- <code>env.i_agt.drv.set_report_verbosity_level(...)</code> 这类写法要通过路径访问后代组件（先点 env，再点 i_agt，再点 drv）→ 这些组件必须已经存在 → 最早只能在 connect_phase 或之后设置。
+
+- 如果只设置当前组件自己（比如在 test 里 <code>set_report_verbosity_level(...)</code>，不访问别人），可以更早（build_phase 就能做）。
+
 ### 3.4.2 重载打印信息的严重性
 UVM 常见 severity：
 
@@ -894,7 +925,7 @@ env.i_agt.drv.set_report_severity_override(
     UVM_ERROR                    // 新严重性
 );
 ```
-作用：driver 内所有 warning 按 error 处理。
+作用：driver 内所有 warning 按 error 处理——打印成 error、计入 error 计数、可能触发退出逻辑。
 #### 按 severity + ID 重载
 ```systemverilog
 env.i_agt.drv.set_report_severity_id_override(
@@ -906,6 +937,15 @@ env.i_agt.drv.set_report_severity_id_override(
 只重载特定 ID 的 warning。
 #### 命令行重载
 <code>+uvm_set_severity=&lt;component&gt;,&lt;id&gt;,&lt;old_severity&gt;,&lt;new_severity&gt;</code> 示例： <code>+uvm_set_severity=&quot;uvm_test_top.env.i_agt.drv,DRV_PROTOCOL,UVM_WARNING,UVM_ERROR&quot;</code> 所有 ID 可使用 <code>_ALL_</code>。
+
+三种重载粒度：
+
+| 方法 | 影响范围 | 代码 |
+|------|----------|------|
+| 整体重载 | driver 里所有 warning | `set_report_severity_override(UVM_WARNING, UVM_ERROR)` |
+| 按 severity+ID 重载 | 只重载 ID 为 "DRV_PROTOCOL" 的 warning | `set_report_severity_id_override(UVM_WARNING, "DRV_PROTOCOL", UVM_ERROR)` |
+| 命令行重载 | 全局，不改码 | `+uvm_set_severity=组件,ID,旧,新` |
+
 #### 使用场景
 
 - 第三方 VIP 把项目必须禁止的情况仅报告为 warning。
@@ -928,58 +968,91 @@ int limit;
 limit = get_report_max_quit_count();
 ```
 教材部分版本接口名称可能显示为 <code>get_max_quit_count</code>；使用时以项目 UVM 版本定义为准。 阈值为 0 通常表示不因计数达到上限而退出。
-#### 命令行设置
+
+**命令行设置**
+
 <code>+UVM_MAX_QUIT_COUNT=6,NO</code> 含义：
 
 - 退出阈值为 6。
 - NO 表示后续设置不允许覆盖该值。
 
 ### 3.4.4 设置计数的目标
-report 消息出现后执行什么操作，由 action 决定。 默认 <code>UVM_ERROR</code> 通常包含 <code>UVM_COUNT</code>。 把 warning 也加入计数：
+report 消息出现后执行什么操作，由 action 决定。 默认 <code>UVM_ERROR</code> 通常包含 <code>UVM_COUNT</code>。
+
+**方法一：按 severity 设置（整个组件内所有 warning）**
+
 ```systemverilog
 env.i_agt.drv.set_report_severity_action(
-    UVM_WARNING,
-    UVM_DISPLAY | UVM_COUNT
+    UVM_WARNING,              // 针对 severity=warning 的消息
+    UVM_DISPLAY | UVM_COUNT   // 行为：打印 + 计数
 );
 ```
-递归设置：
+
+效果：driver 里**所有 warning** 变成"打印 + 计数"（原来只有打印）。
+
+递归版：
 ```systemverilog
 env.i_agt.set_report_severity_action_hier(
     UVM_WARNING,
     UVM_DISPLAY | UVM_COUNT
 );
+// 带 _hier：i_agt 整个子树的所有 warning 都计数
 ```
-#### 按 ID 设置 action
+记忆规律又来了：**`_hier` = 递归到子树**。
+
+**方法二：按 ID 设置（只针对某个标签）**
+
 ```systemverilog
 env.i_agt.drv.set_report_id_action(
-    "DRV_PROTOCOL",
+    "DRV_PROTOCOL",           // 针对 ID=DRV_PROTOCOL 的消息
     UVM_DISPLAY | UVM_COUNT
 );
 ```
-这个 ID 的 INFO/WARNING/ERROR 都会采用该 action。
-#### 按 severity + ID 设置 action
+
+⚠️ 注意：**按 ID 设置时，这个 ID 的所有 severity（INFO/WARNING/ERROR）都采用该 action**——所以 DRV_PROTOCOL 的 info、warning、error 全部"打印 + 计数"。
+
+**方法三：按 severity + ID（最精确）**
+
 ```systemverilog
 env.i_agt.drv.set_report_severity_id_action(
-    UVM_WARNING,
-    "DRV_PROTOCOL",
+    UVM_WARNING,       // severity
+    "DRV_PROTOCOL",    // ID
     UVM_DISPLAY | UVM_COUNT
 );
 ```
-控制粒度更精确。
-#### 从计数中移除 error
+
+只针对"DRV_PROTOCOL 这个 ID 的 warning"——同 ID 的 info、error 不受影响。
+
+**方法四：从计数中移除 error（反操作）**
+
 ```systemverilog
 env.i_agt.drv.set_report_severity_action(
     UVM_ERROR,
-    UVM_DISPLAY
+    UVM_DISPLAY          // 只有打印，没有 UVM_COUNT
 );
 ```
-这会让 error 显示但不计入 quit count。 一般不推荐在没有明确理由时这么做。
+
+效果：error **显示但不计数** → 不会触发 3.4.3 的限次退出。
+
+⚠️ 一般不推荐！原因：
+- error 不计数 → "报错到上限自动退出"失效。
+- 回归里即使有 error 也可能显示 PASS（假通过）。
+
+**五种设置方法总结**
+
+| 方法 | 影响范围 | 函数 |
+|------|----------|------|
+| 按 severity | 组件内所有该 severity 消息 | `set_report_severity_action` |
+| 按 severity（递归） | 子树内所有该 severity | `set_report_severity_action_hier` |
+| 按 ID | 该 ID 的所有 severity | `set_report_id_action` |
+| 按 severity+ID | 该 ID 的该 severity | `set_report_severity_id_action` |
+| 移除计数 | 该 severity 不再计数 | `set_report_severity_action(sev, UVM_DISPLAY)` |
 ### 3.4.5 UVM 的断点功能
 把 action 设置为 <code>UVM_STOP</code>，消息出现时进入仿真器交互调试状态。
 ```systemverilog
 env.i_agt.drv.set_report_severity_action(
     UVM_WARNING,
-    UVM_DISPLAY | UVM_STOP
+    UVM_DISPLAY | UVM_STOP  // 打印 + 停下
 );
 ```
 精确到 ID：
@@ -990,6 +1063,14 @@ env.i_agt.drv.set_report_severity_id_action(
     UVM_DISPLAY | UVM_STOP
 );
 ```
+
+两种设置粒度：
+
+| 方法 | 影响范围 | 代码 |
+|------|----------|------|
+| 按 severity | 所有 warning 出现就停 | `set_report_severity_action(UVM_WARNING, UVM_DISPLAY | UVM_STOP)` |
+| 按 severity + ID | 只有 "DRV_PROTOCOL" 的 warning 出现才停 | `set_report_severity_id_action(UVM_WARNING, "DRV_PROTOCOL", UVM_DISPLAY | UVM_STOP)` |
+
 用途：
 
 - 第一次协议错误出现时立即检查波形和调用栈。
@@ -1068,7 +1149,7 @@ endfunction
 | <code>UVM_CALL_HOOK</code> | 调用 report hook |
 | <code>UVM_STOP</code> | 停止并进入交互模式 |
 
-action 是位掩码，可以组合： <code>UVM_DISPLAY | UVM_COUNT | UVM_LOG</code>
+action 是位掩码，可以组合： <code>UVM_DISPLAY | UVM_COUNT | UVM_LOG</code>= "打印 + 计数 + 写文件" 三个行为同时做。
 #### 默认行为
 
 | severity | 典型默认 action |

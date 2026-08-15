@@ -46,4 +46,4 @@ SystemVerilog 练习代码在另一个仓库：[systemverilog-learning](https://
 - 《SystemVerilog 验证 测试平台编写指南》（张春 译）
 - 《UVM 实战》（张强）
 
-> 最后更新：2026-08-14
+> 最后更新：2026-08-15
