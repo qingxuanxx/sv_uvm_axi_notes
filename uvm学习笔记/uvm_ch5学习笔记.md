@@ -87,46 +87,37 @@ task phase 可包含：
 - fork/join 并发进程。
 
 #### 总体 phase 顺序
-```text
-build
-connect
-end_of_elaboration
-start_of_simulation
-        |
-        +-- run_phase -----------------------------+
-        |                                          |
-        +-- pre_reset -> reset -> post_reset        |
-            -> pre_configure -> configure           |
-            -> post_configure -> pre_main           |
-            -> main -> post_main                    |
-            -> pre_shutdown -> shutdown             |
-            -> post_shutdown -----------------------+
-extract
-check
-report
-final
+```mermaid
+flowchart TD
+    BUILD["build<br/>自顶向下建树"] --> CONN["connect<br/>自底向上连端口"]
+    CONN --> EOE["end_of_elaboration<br/>检查结构、打印拓扑"]
+    EOE --> SOS["start_of_simulation<br/>仿真前最后设置"]
+
+    SOS --> RUN["run_phase<br/>与 12 个 run-time phase 并行"]
+    SOS --> R1["pre_reset → reset → post_reset"]
+    R1 --> R2["pre_configure → configure → post_configure"]
+    R2 --> R3["pre_main → main → post_main"]
+    R3 --> R4["pre_shutdown → shutdown → post_shutdown"]
+
+    RUN --> EX["extract<br/>提取统计"]
+    R4 --> EX
+    EX --> CH["check<br/>查残留、查遗漏"]
+    CH --> REP["report<br/>输出 PASS/FAIL"]
+    REP --> FIN["final<br/>清理"]
 ```
 
 <code>run_phase</code> 与 12 个 run-time phase 并行。
 
 ---
 
-### 5.1.2 动态运行 phase
-12 个 run-time phase：
+### 5.1.2 动态运行 phase（12 个 run-time phase）
 
-```text
-pre_reset
-reset
-post_reset
-pre_configure
-configure
-post_configure
-pre_main
-main
-post_main
-pre_shutdown
-shutdown
-post_shutdown
+12 个 run-time phase 分 4 组，每组是"pre_* → 核心 → post_*"的包裹结构：
+
+```mermaid
+flowchart TD
+    R1["pre_reset → reset → post_reset<br/>复位组"] --> R2["pre_configure → configure → post_configure<br/>配置组"]
+    R2 --> R3["pre_main → main → post_main<br/>主激励组"] --> R4["pre_shutdown → shutdown → post_shutdown<br/>收尾组"]
 ```
 
 核心四阶段：
@@ -138,23 +129,25 @@ post_shutdown
 | main_phase | 主要激励、监测和检查 |
 | shutdown_phase | 结束流量、断电或收尾 |
 
-pre/post phase 为前后准备提供标准位置。
-
-#### 为什么要细分
-
-- 支持运行中重新复位。
-- driver、monitor、model、scoreboard 可在同一语义阶段同步处理。
-- phase jump 能统一跳转整个 domain。
-- 从其他验证方法学迁移时更容易映射阶段。
-
-例如 reset_phase：
+pre_* 是开场白、post_* 是谢幕：给各组件留出统一的前后准备位置。例如 scoreboard 在 reset_phase 清空旧数据，防止新旧数据混在一起：
 
 ```systemverilog
 task my_scoreboard::reset_phase(uvm_phase phase);
-    expected_q.delete();          // 清除复位前尚未比较的数据
-    error_count = 0;
+    expected_q.delete();          // [1] 清掉复位前未比较的数据
+    error_count = 0;              // [2] 错误计数归零
 endtask
 ```
+
+两个容易忽略的点：
+
+1. **task phase 靠 objection 续命**：没人 raise_objection，phase 会被瞬间跳过（详见 5.2）。
+2. **全树同步**：所有组件的同一个 phase 都执行完，才进入下一个 phase，各组件因此能在同一语义阶段对齐动作。
+
+#### 为什么要拆成 4 组
+
+- 不同场景挂不同 sequence（如 ch2 的 `i_agt.sqr.main_phase`）。
+- 支持运行中重新复位（phase jump）。
+- 各组件在同一语义阶段同步动作，不会错位。
 
 ---
 
@@ -168,13 +161,22 @@ endtask
 
 #### build_phase：top-down
 ```text
-test.build
-  -> env.build
-      -> agent.build
-          -> driver.build
+test.build → env.build → agent.build → driver.build
 ```
 
 原因：child 必须先由 parent 的 build_phase 创建，之后才能执行 child.build_phase。
+
+**机制**：phase 调度器调用某节点 build_phase 的前提是它已存在于树上，而节点上树靠 parent 在自己的 build_phase 里 create。因此 top-down 不是约定而是因果：env.build 不执行，i_agt 就不存在，调度器永远不会调 i_agt.build。遍历方式为深度优先前序（pre-order）：先调父的 build，再递归进整棵子树。
+
+```systemverilog
+function void env::build_phase(uvm_phase phase);
+    super.build_phase(phase);
+    i_agt = my_agent::type_id::create("i_agt", this);  // [1] env 先造出 i_agt
+    scb   = my_scoreboard::type_id::create("scb", this);
+endfunction
+```
+
+**易错点**：漏创建或拼错名字的组件不在树上，它的 build 及之后所有 phase 静默不执行，后续引用得到 null，错误往往在很后面才暴露。
 
 component 必须在 build 阶段完成创建。
 
@@ -184,25 +186,48 @@ object 不进入 component 树，可在任意合理阶段创建。
 教材指出，除 build_phase 外，大多数 function phase 按树从叶到根执行。
 
 ```text
-driver.connect
-  -> agent.connect
-      -> env.connect
-          -> test.connect
+driver.connect → agent.connect → env.connect → test.connect
 ```
 
 这让子组件先准备好端口，父组件随后完成跨组件连接。
 
+**机制**：端口在 build 阶段已全部创建，bottom-up 真正解决的是"连接依赖链"——agent.connect 先把内部端口暴露给 ap（ap = mon.ap），env.connect 才能用 i_agt.ap 做跨组件连接；若 env.connect 先跑，i_agt.ap 还是 null。这体现封装：env 只面对 agent 的对外接口，不关心其内部结构。
+
+```systemverilog
+// agent 的 connect：把内部 mon 的端口暴露出来
+function void i_agt::connect_phase(uvm_phase phase);
+    ap = mon.ap;                 // [1] agent.ap 指向 mon.ap
+endfunction
+
+// env 的 connect：用 agent 暴露的端口做跨组件连接
+function void env::connect_phase(uvm_phase phase);
+    i_agt.ap.connect(mdl.port);  // [2] 需要 i_agt.ap 已经有效
+endfunction
+```
+
 #### task phase：bottom-up 启动、并发运行
 task phase 不是等 child 完成后才执行 parent，而是按遍历顺序启动多个并行进程。
 
-```text
-driver.main  ----+
-monitor.main ----+ 同时运行
-agent.main   ----+
-env.main     ----+
+```mermaid
+flowchart TD
+    GO["同时运行（bottom-up 启动）"] --> DRV["driver.main"]
+    GO --> MON["monitor.main"]
+    GO --> AGT["agent.main"]
+    GO --> ENV["env.main"]
 ```
 
 不要依赖 task phase 的启动先后完成通信同步。
+
+**机制**：调度器按树顺序逐个调用各组件 main_phase，但每个调用 fork 成独立进程互不阻塞；全部启动后统一等待"完成条件"。等价逻辑：
+
+```systemverilog
+foreach (comp in tree) begin
+    fork comp.main_phase(phase);   // [1] 全部 fork，不等待
+    join_none
+end
+wait (phase.phase_done == 0);      // [2] 统一等待：objection 归零且进程结束
+// 到达 [2] 后才进入 post_main_phase
+```
 
 #### 兄弟 component 的顺序
 教材在 UVM 1.1d 源码中观察到同层 component 按实例名字典序遍历，而非创建顺序。
@@ -223,30 +248,45 @@ aaaa -> dddd -> jjjj -> zzzz
 
 > **规则**：兄弟 component 之间不能依赖 phase 执行顺序；有依赖就应使用显式配置、连接或同步机制。
 
+**真相**：UVM 1.1d 中 m_children 是关联数组（uvm_component m_children[string]，key 为实例名），遍历按 key 字典序，与创建顺序无关。这是实现细节，标准不保证，工程上不应依赖。
+
 #### run-time phase 的全局同步
 假设 A.main 耗时 100，B.main 耗时 200：
 
-```text
-time 0        100             200
-A.main [------] 等待 B --------|
-B.main [-----------------------]
-                              |
-                       所有 main 完成
-                              |
-                     A/B.post_main 同时开始
+```mermaid
+flowchart TD
+    A["A.main（耗时 100，完成后等 B）"] --> SYNC["所有 main 完成"]
+    B["B.main（耗时 200）"] --> SYNC
+    SYNC --> PM["A/B.post_main 同时开始"]
 ```
 
 每个 component 完成自己的 main 后，要等待该 domain 中其他 component 的 main 完成。
 
 下一 run-time phase 只有在当前 phase 的 objection 全部结束后才开始。
 
+**机制**：每个 run-time phase 维护"完成计数" phase_done——raise_objection +1、drop_objection -1，加上仍在运行的 phase 进程，全部归零才放行。用 A.main=100、B.main=200 走一遍：
+
+| 时间 | phase_done | 状态 |
+|------|-----------|------|
+| 0 | 2（A、B 各 raise 一次） | main 运行中 |
+| 100 | 1（A drop 并结束，B 仍在跑） | A 等 B |
+| 200 | 0（B drop 并结束） | 归零，main 结束 |
+
+"快的等慢的"不是 A 主动等待，而是 phase 完成条件是所有参与者都完成（rendezvous 会合点）；post_main 是独立 phase，计数从 0 重新开始，故 A/B 的 post_main 同时重新 raise 启动。
+
 #### run_phase 与 run-time phase 同步
-<code>run_phase</code> 与 12 个动态 phase 并行。
+<code>run_phase</code> 与 12 个动态 phase 并行——两套独立运行的体系：
 
-进入 extract_phase 前，需要：
+```text
+体系 A：run_phase              ← 一条线，从 start_of_simulation 一路跑到 extract 前
+体系 B：12 个 run-time phase   ← 一条线，pre_reset → ... → post_shutdown 顺序走
+两者并行，各有各的 objection 计数
+```
 
-- 所有 run-time phase 完成。
-- 所有 component 的 run_phase 完成或被终止。
+进入 extract 的判据 = 两条线都收工：
+
+- 体系 B：12 个动态 phase 全部走完（各自 objection 归零）。
+- 体系 A：run_phase 完成或被终止（objection 归零，或进程被 kill）。
 - 相关 objection 全部撤销。
 
 #### phase 时间线示例
@@ -285,6 +325,22 @@ endtask
 | 400 | B.post_main 完成，等待 A |
 | 500 | A.post_main 完成，进入后续 phase |
 
+时间轴推演（第一关 main_phase）：
+
+```text
+时间轴：  0            100          200
+A 的活：  [============]                   ← 100 干完，drop
+B 的活：  [=========================]      ← 200 才干完，drop
+```
+
+时间轴推演（第二关 post_main_phase）：
+
+```text
+时间轴：  200          400         500
+A 的活：  [=========================]   ← 这关 A 要 300，干到 500
+B 的活：  [============]                ← 这关 B 只要 200，干到 400
+```
+
 单个 component 提前完成不会独自进入下一动态 phase，同一 domain 必须在 phase 边界同步。
 
 ---
@@ -299,15 +355,15 @@ UVM 树遍历常见两种方式：
 
 教材说明 UVM 使用深度优先遍历 phase。
 
-```text
-env
-├── i_agt
-│   ├── drv
-│   ├── mon
-│   └── sqr
-├── mdl
-├── o_agt
-└── scb
+```mermaid
+flowchart TD
+    ENV["env"] --> IAGT["i_agt"]
+    ENV --> MDL["mdl"]
+    ENV --> OAGT["o_agt"]
+    ENV --> SCB["scb"]
+    IAGT --> DRV["drv"]
+    IAGT --> MON["mon"]
+    IAGT --> SQR["sqr"]
 ```
 
 可能先完成 <code>i_agt</code> 子树，再访问后续兄弟。
@@ -326,7 +382,7 @@ if (!scb.already_ready)
 
 ---
 
-### 5.1.5 super.phase 的内容
+### 5.1.5 super.phase 的内容（⚠️ 未理解，待复习，先跳过）
 是否调用 <code>super.xxxx_phase</code> 取决于父类是否实现了必要行为。
 
 #### build_phase 通常必须调用
@@ -387,20 +443,26 @@ endfunction
 ---
 
 ### 5.1.7 phase 的跳转
-<code>phase.jump()</code> 可让当前 schedule 跳到另一 phase。
+<code>phase.jump(目标phase)</code> 可让当前 schedule 跳到另一 phase。
 
-典型场景：运行中检测到复位，main_phase 跳回 reset_phase。
+典型场景：运行中检测到 DUT 复位，main_phase 跳回 reset_phase。
+
+```
+正常流程：pre_reset → reset → ... → main → ...
+跳转后：  main → jump → reset → ... → main（重新跑）
+```
 
 #### driver reset_phase
+
 ```systemverilog
 task my_driver::reset_phase(uvm_phase phase);
     phase.raise_objection(this);
 
-    vif.data  <= '0;              // 立即恢复接口空闲状态
+    vif.data  <= '0;              // [1] 接口立刻置空闲
     vif.valid <= 1'b0;
 
     while (!vif.rst_n)
-        @(posedge vif.clk);       // 等待复位释放
+        @(posedge vif.clk);       // [2] 等复位释放才继续
 
     phase.drop_objection(this);
 endtask
@@ -411,14 +473,14 @@ endtask
 task my_driver::main_phase(uvm_phase phase);
     fork
         forever begin
-            seq_item_port.get_next_item(req);
+            seq_item_port.get_next_item(req);   // [1] 正常发激励
             drive_one_packet(req);
             seq_item_port.item_done();
         end
 
         begin
-            @(negedge vif.rst_n);
-            phase.jump(uvm_reset_phase::get());
+            @(negedge vif.rst_n);               // [2] 盯异步复位
+            phase.jump(uvm_reset_phase::get()); // [3] 发现复位 → 跳回 reset
         end
     join
 endtask
@@ -461,11 +523,11 @@ phase 把“创建、连接、运行、检查、报告”分配到确定阶段�
 
 没有 phase 时，用户必须手工保证：
 
-```text
-先创建所有 component
-再连接所有端口
-再启动激励和监测
-最后检查并报告
+```mermaid
+flowchart TD
+    S1["先创建所有 component"] --> S2["再连接所有端口"]
+    S2 --> S3["再启动激励和监测"]
+    S3 --> S4["最后检查并报告"]
 ```
 
 若创建和连接语句交错，很容易在对象尚未创建时连接。
@@ -528,10 +590,10 @@ endfunction
 
 命令行：
 ```text
-+UVM_TIMEOUT="300ns,YES"
++UVM_TIMEOUT="300ns,YES"          // YES/NO：是否允许被代码里的设置覆盖
 ```
 
-第二项表示该设置能否被后续设置覆盖。
+参数含义：`set_timeout(时间, 可否覆盖)`——第二参数 0 表示"这次设置不是最终的，后面还能改"，1 表示"锁死"。
 
 timeout 应根据最长合法测试设置，过短会误杀慢场景，过长会浪费回归资源。
 
@@ -704,10 +766,10 @@ UVM 通常推荐由 sequence 控制，因为 sequence 最清楚激励何时开�
 ### 5.2.4 set_drain_time 的使用
 DUT 有流水延迟，最后一个输入 transaction 发送完成后，输出可能尚未出现。
 
-```text
-输入最后一包完成时间 n
-DUT 处理延迟 p
-最后输出时间 n+p
+```mermaid
+flowchart LR
+    N["输入最后一包完成时间 n"] --> D["DUT 处理延迟 p"]
+    D --> NP["最后输出时间 n+p"]
 ```
 
 若 n 时刻立即 drop，monitor 可能收不到最后输出。
@@ -733,11 +795,11 @@ endtask
 
 流程：
 
-```text
-最后一个 drop
-  -> total objection = 0
-  -> 等待 drain_time
-  -> 进入 post_main_phase
+```mermaid
+flowchart TD
+    DROP["最后一个 drop"] --> ZERO["total objection = 0"]
+    ZERO --> WAIT["等待 drain_time"]
+    WAIT --> POST["进入 post_main_phase"]
 ```
 
 drain time 期间当前 phase 的 monitor、scoreboard 等仍可运行。
@@ -789,13 +851,13 @@ phase.drop_objection(
 通常一次 raise 1 个最清晰，多计数只在确有多个独立工作单元时使用。
 
 #### objection 沿树传播
-```text
-sequence raise
- -> sequencer total +1
- -> agent total +1
- -> env total +1
- -> test total +1
- -> uvm_top total +1
+```mermaid
+flowchart TD
+    SEQ["sequence raise"] --> SQR["sequencer total +1"]
+    SQR --> AGT["agent total +1"]
+    AGT --> ENV["env total +1"]
+    ENV --> TEST["test total +1"]
+    TEST --> TOP["uvm_top total +1"]
 ```
 
 phase 判断的是全局 total 是否归零。
@@ -833,11 +895,14 @@ phase 判断的是全局 total 是否归零。
 
 如果 DUT 有两个可独立复位、配置和运行的区域，可把其中一部分放入新 domain。
 
-```text
-common_domain                  new_domain
-  A.reset/main                   B.reset/main
-       |                              |
-  按本 domain objection同步      独立推进
+```mermaid
+flowchart LR
+    subgraph C["common_domain"]
+        A["A.reset/main<br/>按本 domain objection 同步"]
+    end
+    subgraph N["new_domain"]
+        B["B.reset/main<br/>独立推进"]
+    end
 ```
 
 domain 主要隔离 12 个 run-time phase。
@@ -913,13 +978,12 @@ endtask
 ```
 
 时序：
-```text
-time 0   B.reset
-time 100 B.main 开始
-time 0   A.reset
-time 300 A.main 开始
-time 500 A.main 完成
-time 600 B.main 完成
+```mermaid
+flowchart TD
+    T0["time 0：A.reset / B.reset 开始"] --> T100["time 100：B.reset 完成，B.main 开始"]
+    T100 --> T300["time 300：A.reset 完成，A.main 开始"]
+    T300 --> T500["time 500：A.main 完成"]
+    T500 --> T600["time 600：B.main 完成"]
 ```
 
 两个 domain 不再要求 A.reset 与 B.reset 同时完成后才一起进入 main。

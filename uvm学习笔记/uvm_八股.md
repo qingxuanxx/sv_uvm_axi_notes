@@ -15,6 +15,10 @@
 7. [config_db 字段名前缀匹配（agt_* 的坑）](#7-config_db-字段名前缀匹配agt_-的坑)
 8. [config_db 的 set/get 层级匹配规则](#8-config_db-的-setget-层级匹配规则)
 9. [uvm_component 的生命周期](#9-uvm_component-的生命周期)
+10. [UVM 的 phase 分为哪两大类？](#10-uvm-的-phase-分为哪两大类)
+11. [UVM phase 的总体执行顺序与 run_test 的起点](#11-uvm-phase-的总体执行顺序与-run_test-的起点)
+12. [run_phase 与 main_phase 的区别](#12-run_phase-与-main_phase-的区别)
+13. [为什么 build_phase 是自顶向下执行？](#13-为什么-build_phase-是自顶向下执行)
 
 ---
 
@@ -22,10 +26,10 @@
 
 ### 题目来源
 
-- 小米 · ASIC验证 · 实习（收尾八股）
-- 平头哥 · 数字IC验证 · 校招 · 一面（凉经）
-- 新凯来 · 数字IC验证 · 校招（UVM 基础）
-- 集益威 · 数字IC验证 · 校招 · 一面（UVM 基类）
+- 小米 · ASIC验证 · 实习（uvm_object 与 uvm_component 的区别）
+- 平头哥 · 数字IC验证 · 校招 · 一面（uvm_object 与 uvm_component 的区别）
+- 新凯来 · 数字IC验证 · 校招（uvm_object 与 uvm_component 的区别）
+- 集益威 · 数字IC验证 · 校招 · 一面（component 与 object 的区别）
 
 ### 考点
 
@@ -64,7 +68,7 @@ uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_
 
 ### 题目来源
 
-合见工软 · 数字IC验证 · 校招 · 一面（原题）
+- 合见工软 · 数字IC验证 · 校招 · 一面（config_db 完成 set 后，若源变量发生变化，get 到的值是否同步更新）
 
 ### 考点
 
@@ -90,7 +94,7 @@ uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_
 
 ### 题目来源
 
-合见工软 · 数字IC验证 · 校招 · 一面（原题）
+- 合见工软 · 数字IC验证 · 校招 · 一面（uvm_info 的消息等级分类）
 
 ### 考点
 
@@ -281,5 +285,124 @@ component 的生命周期由 **UVM 的 phase 机制**管理，分**构建、运�
 **关键对比**：component 创建一次、贯穿仿真、受 phase 调度；object 用完即弃、没有 phase。
 
 > 一句话：**component 生命周期 = build 建树 → connect 接线 → run 运行 → extract/check/report 收尾 → final 清理**。
+
+---
+
+## 10. UVM 的 phase 分为哪两大类？
+
+### 题目来源
+
+- 中兴通讯 · 数字IC验证 · 校招 · 领军计划（耗时与不耗时 phase 的区分）
+- 海光 · 数字IC验证 · 校招 · NoC方向（UVM 核心 phase 的分类与简要介绍）
+
+### 考点
+
+- function phase 与 task phase 的区别（是否耗仿真时间）
+- 12 个 run-time phase 的归属与 4 段式结构
+
+### 参考答案
+
+UVM 的 phase 分两大类，分水岭是**能不能耗仿真时间**：
+
+**function phase（函数，不耗时）**：瞬间完成，用来搭结构和收尾。包括构建段的 build、connect、end_of_elaboration、start_of_simulation，和收尾段的 extract、check、report、final。
+
+**task phase（任务，可耗时）**：能等时钟、能耗时间，用来真正跑测试。包括 run_phase 和 12 个 run-time phase。
+
+12 个 run-time phase 分 4 组，每组是"pre_* → 核心 → post_*"的包裹结构：reset（复位）、configure（配置）、main（主激励）、shutdown（收尾），顺序执行，全程与 run_phase 并行。
+
+| 类别 | 是否耗时 | 包含 |
+|------|----------|------|
+| function phase | 否 | build/connect/end_of_elaboration/start_of_simulation/extract/check/report/final |
+| task phase | 是 | run_phase + 12 个 run-time phase |
+
+> 一句话：function 不耗时管搭建收尾，task 可耗时管真正运行；12 个 run-time phase 是 4 组三明治（pre+核心+post）。
+
+---
+
+## 11. UVM phase 的总体执行顺序与 run_test 的起点
+
+### 题目来源
+
+- 通用 · 数字IC验证 · 实习 · 基础面经（phase 机制：各 phase 执行顺序）
+- 字节跳动 · 数字IC验证 · 实习 · 高频题（run_test 开始执行的是哪个 phase、UVM 中 phase 的完整分类与分组）
+- 中兴通讯 · 数字IC验证 · 校招 · 领军计划（UVM Phase 机制的总体执行顺序）
+
+### 考点
+
+- 三段式顺序：构建 → 运行 → 收尾
+- build 自顶向下、connect 自底向上
+- run_test 的启动流程
+
+### 参考答案
+
+总体分三段，固定顺序执行：**构建 → 运行 → 收尾**。
+
+构建段 4 个 function phase：build（自顶向下建树）→ connect（自底向上连线）→ end_of_elaboration（检查结构）→ start_of_simulation（仿真前最后设置）。运行段：run（run_phase 与 12 个 run-time phase 并行）。收尾段 4 个：extract（提取统计）→ check（查遗漏）→ report（汇总 PASS/FAIL）→ final（清理）。
+
+`run_test("test")` 启动后：UVM 创建 test 对象并挂到 uvm_test_top，平台**从 build_phase 开始自顶向下**搭建组件树，之后依次走完 connect、run、check、report。
+
+> 一句话：构建（build→connect→检查）→ 运行（run 并行 12 个动态 phase）→ 收尾（extract→check→report→final）；run_test 从 build 开始。
+
+---
+
+## 12. run_phase 与 main_phase 的区别
+
+### 题目来源
+
+- 小米 · 处理器验证 · 校招（run_phase 与 main_phase 的区别）
+- 芯动科技 · 数字IC验证 · 校招（run_phase 与 main_phase 的区别）
+- 小鹏汽车 · SOC验证 · 校招（区别；main_phase 写了 raise_objection 而 run_phase 没写，run_phase 能否正常运行）
+- 某TPU公司 · 数字IC验证 · 校招（两者关系；main_phase 里 raise/drop objection 时 run_phase 是否继续执行）
+
+### 考点
+
+- run_phase 与 12 个 run-time phase 的并行关系
+- 两条线各有独立 objection，互不干扰
+- 进入 extract 前两条线都必须收工
+
+### 参考答案
+
+**run_phase 和 main_phase 是并行关系，不是先后关系**。run_phase 是一条总流水线，从 start_of_simulation 一直跑到 extract 之前；main_phase 只是 12 个 run-time phase 之一（主激励阶段），是精细流水线中间的一段。
+
+两者各有各的 objection 计数，互不干扰：
+
+**第一，只在 main_phase raise、run_phase 没写 objection**——run_phase 照常能运行。因为 run_phase 自己的计数一直是 0，它早就"完成"了；main 的 objection 只影响 main 这条线，两条线各自独立推进。
+
+**第二，只在 run_phase raise**——12 个动态 phase 因为没人 raise objection 会被瞬间跳过，但 run_phase 还在跑，测试照样进行；等 run_phase 的 objection 归零才进 extract。
+
+进入 extract 前，两条线必须都收工：12 个 run-time phase 全部走完，且 run_phase 完成或被终止。
+
+> 一句话：run_phase 与 main_phase 并行不互等、各有各的 objection；进 extract 前两条线都得结束。
+
+---
+
+## 13. 为什么 build_phase 是自顶向下执行？
+
+### 题目来源
+
+- 面试书《Cracking Digital VLSI Verification Interview》· 验证方法学章（build_phase 在组件层次中自顶向下执行的原因）
+- 豪威科技 · 数字IC验证 · 校招 · 一面（build_phase / main_phase / configure_phase 中 AXI VIP 和 APB VIP 的配置——应用型）
+
+### 考点
+
+- top-down 的因果必然：父组件在 build 里 create 子组件
+- 与 connect bottom-up、task phase 并发的对比
+- 漏创建组件的后果
+
+### 参考答案
+
+build_phase 自顶向下是**因果必然**，不是约定：phase 调度器调用某个组件 build 的前提，是它已经存在于树上；而组件上树靠**父组件在自己的 build_phase 里 create**。env.build 不执行，i_agt 就不存在，调度器永远不会调 i_agt.build。
+
+漏创建或拼错名字的组件不在树上，它的 build 及之后所有 phase 静默不执行，后续引用得到 null，错误往往在很后面才暴露。
+
+对比另外两类：**connect_phase 自底向上**（子组件端口先就绪，父组件才能做跨组件连接）；**task phase 并发运行**（按树顺序启动各组件 main，互不等待，全部启动后统一等 objection 归零）。
+
+| phase 类型 | 执行方向 | 原因 |
+|------------|----------|------|
+| build | 自顶向下 | 父创建子，因果必然 |
+| connect | 自底向上 | 父要用子的成品端口 |
+| main 等 task | 并发 | fork 启动 + 统一等待 |
+
+> 一句话：build 父先子后（父创建子）、connect 子先父后（父用子的成品）、task 并发（fork + 会合）。
 
 ---
