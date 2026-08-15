@@ -1,6 +1,19 @@
 # SV、UVM、AMBA 总线学习笔记
 
-数字IC验证学习笔记，涵盖 SV、UVM、AMBA 总线 + 数字IC验证校招面经（50篇）。
+> 数字IC验证（Digital IC Verification）学习笔记：SystemVerilog、UVM、AMBA 总线协议 + 面试八股 + 校招面经。
+
+![GitHub stars](https://img.shields.io/github/stars/qingxuanxx/sv_uvm_axi_notes)
+![GitHub license](https://img.shields.io/github/license/qingxuanxx/sv_uvm_axi_notes)
+![visitors](https://visitor-badge.glitch.me/badge?page_id=qingxuanxx.sv_uvm_axi_notes)
+
+## 内容概览
+
+- 📘 **SystemVerilog 学习笔记**：数据类型、随机化、线程通信、面向对象、功能覆盖率（第 2~9 章）
+- 🚀 **UVM 实战学习笔记**：平台搭建、UVM 基础、TLM、phase、sequence、寄存器模型、factory、可重用性（第 1~9 章）
+- 🔌 **AMBA 总线协议**：AXI、AXI-Lite、AXI-Stream、APB
+- 🎯 **面试八股**：SV / UVM / AXI 高频考点（持续积累）
+- 📄 **面试书笔记**：《Cracking Digital VLSI Verification Interview》10 章中文整理
+- 📝 **校招面经**：50 篇数字IC验证面试经验
 
 ## 目录
 
