@@ -35,6 +35,17 @@ sv_uvm_axi_notes/
 │   ├── axi-lite学习笔记.md  # AXI-Lite 协议
 │   ├── axi-stream学习笔记.md # AXI-Stream 协议
 │   └── axi_八股.md          # AXI 八股（面试常考点积累）
+├── 面试书_CrackingVLSI/ # 《Cracking Digital VLSI Verification Interview》笔记（10章）
+│   ├── 00_前言与面试准备.md
+│   ├── 01_数字逻辑设计.md
+│   ├── 02_计算机体系结构.md
+│   ├── 03_编程基础.md
+│   ├── 04_硬件描述语言.md
+│   ├── 05_验证基础.md
+│   ├── 06_验证方法学.md
+│   ├── 07_版本控制.md
+│   ├── 08_逻辑推理与谜题.md
+│   └── 09_非技术与行为面试.md
 └── 面经/              # 数字IC验证面试经验（50篇，持续更新）
 ```
 
