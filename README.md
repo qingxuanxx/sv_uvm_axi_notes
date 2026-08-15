@@ -43,6 +43,7 @@ sv_uvm_axi_notes/
 │   └── uvm_语法.md          # UVM 常用 API 与宏语法速查
 ├── axi学习笔记/        # AMBA 总线协议学习笔记
 │   ├── apb学习笔记.md       # APB 协议
+│   ├── ahb学习笔记.md       # AHB 协议
 │   ├── axi学习笔记.md       # AXI 协议
 │   ├── axi-lite学习笔记.md  # AXI-Lite 协议
 │   ├── axi-stream学习笔记.md # AXI-Stream 协议
@@ -67,7 +68,15 @@ SystemVerilog 练习代码在另一个仓库：[systemverilog-learning](https://
 
 ## 参考资料
 
+### 书籍
 - 《SystemVerilog 验证 测试平台编写指南》（张春 译）
 - 《UVM 实战》（张强）
+- 《Cracking Digital VLSI Verification Interview》（Ramdas Mozhikunnath & Robin Garg）
+
+### 官方协议文档（AMBA）
+- ARM AMBA AXI and ACE Protocol Specification（IHI 0022，含 AXI-Lite）：https://developer.arm.com/documentation/ihi0022
+- ARM AMBA AXI-Stream Protocol Specification（IHI 0051）：https://developer.arm.com/documentation/ihi0051
+- ARM AMBA 3 APB Protocol（IHI 0024）：https://developer.arm.com/documentation/ihi0024
+- ARM AMBA AHB Protocol Specification（IHI 0033）：https://developer.arm.com/documentation/ihi0033
 
 > 最后更新：2026-08-15
