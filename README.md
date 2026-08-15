@@ -9,7 +9,7 @@
 
 - 📘 **SystemVerilog 学习笔记**：数据类型、随机化、线程通信、面向对象、功能覆盖率（第 2~9 章）
 - 🚀 **UVM 实战学习笔记**：平台搭建、UVM 基础、TLM、phase、sequence、寄存器模型、factory、可重用性（第 1~9 章）
-- 🔌 **AMBA 总线协议**：AXI、AXI-Lite、AXI-Stream、APB
+- 🔌 **AMBA 总线协议**：AXI、AXI-Lite、AXI-Stream、AHB、APB
 - 🎯 **面试八股**：SV / UVM / AXI 高频考点（持续积累）
 - 📄 **面试书笔记**：《Cracking Digital VLSI Verification Interview》整理
 - 📝 **校招面经**：50 篇数字IC验证面试经验（持续更新）
