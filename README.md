@@ -56,12 +56,14 @@ sv_uvm_axi_notes/
 │   ├── 07_版本控制.md
 │   ├── 08_逻辑推理与谜题.md
 │   └── 09_非技术与行为面试.md
-└── 面经/              # 数字IC验证面试经验（50篇，持续更新）
+├── 面经/              # 数字IC验证面试经验（50篇，持续更新）
+└── 手撕/              # 面经手撕代码题目整理（RTL/约束/UVM/覆盖率/线程OOP，含答案）
 ```
 
 ## 配套代码
 
-SystemVerilog 练习代码在另一个仓库：[systemverilog-learning](https://github.com/qingxuanxx/systemverilog-learning)
+- [verilog-learning](https://github.com/qingxuanxx/verilog-learning)：Verilog RTL 练习代码（组合/时序逻辑、状态机、FIFO、仲裁器等，按周组织）
+- [systemverilog-learning](https://github.com/qingxuanxx/systemverilog-learning)：SystemVerilog 练习代码（数据类型、过程语句、接口与 clocking、OOP 等，按章节组织）
 
 ## 参考资料
 
@@ -76,4 +78,4 @@ SystemVerilog 练习代码在另一个仓库：[systemverilog-learning](https://
 - ARM AMBA 3 APB Protocol（IHI 0024）：https://developer.arm.com/documentation/ihi0024
 - ARM AMBA AHB Protocol Specification（IHI 0033）：https://developer.arm.com/documentation/ihi0033
 
-> 最后更新：2026-08-15
+> 最后更新：2026-08-16
