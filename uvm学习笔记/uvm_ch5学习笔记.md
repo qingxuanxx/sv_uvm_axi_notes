@@ -611,24 +611,27 @@ objection 是 task phase 的存活计数。
 
 ```systemverilog
 task my_sequence::body();
-    if (starting_phase != null)
-        starting_phase.raise_objection(this);
+    if (starting_phase != null)              // [1] sequence 通常由 phase 启动才有 starting_phase
+        starting_phase.raise_objection(this); // [2] 举手：我要干活，phase 别结束
 
     // 需要仿真时间的测试行为
 
     if (starting_phase != null)
-        starting_phase.drop_objection(this);
+        starting_phase.drop_objection(this);  // [3] 放手：我干完了
 endtask
 ```
 
 #### 基本规则
 
-- drop 前必须 raise。
-- 所有 objection 归零后，当前 phase 才能结束。
-- 若 phase 从未 raise，UVM 可在 0 时间立即跳过它。
-- phase 结束时仍运行的无限循环会被框架终止。
+- **drop 前必须 raise**，raise 让计数 +1，drop 让计数 -1，**顺序错（先 drop）就是非法操作**，UVM 会报错。
+- **所有 objection 归零后，当前 phase 才能结束**——即 5.1.3 的 phase_done 计数：同一 domain 所有组件的 raise/drop 累加在**同一个计数器**上，计数归零且进程结束才放行；"快的等慢的"就是计数还没归零。
+- **若 phase 从未 raise，UVM 可在 0 时间立即跳过它**——即 5.1.9 trace 的 **SKIP**：计数恒为 0，phase 瞬间完成，耗时代码没机会跑。
+- **phase 结束时仍运行的无限循环会被框架终止**——如果 raise 了、代码里有个 `forever` 循环，drop 永远执行不到，计数永远不归零 → phase 永远不结束 → 仿真挂死；UVM 会在 phase 结束条件满足时强制杀掉仍在跑的 phase 进程。
 
 #### 只有 driver raise
+
+**核心**：objection 是**挂在 phase 上**的，不是挂在组件上的。同一个 phase 里，**任何一个**组件的 raise 都能让整个 phase 活着。
+
 ```systemverilog
 task driver::main_phase(uvm_phase phase);
     phase.raise_objection(this);
@@ -637,15 +640,20 @@ task driver::main_phase(uvm_phase phase);
 endtask
 
 task monitor::main_phase(uvm_phase phase);
-    forever collect_one_packet(); // 可在这 100 时间内并发运行
+    forever collect_one_packet(); // 可在这 100 时间内并发运行（它不需要 raise，因为 driver 的 raise 已经保住了 phase）
 endtask
 ```
 
 monitor 不必自己 raise；同一 phase 中任一 component 的 objection 都能保持整个 phase 存活。
 
-100 时间后 objection 归零，monitor 的 forever 进程被终止。
+100 时间后 objection 归零，monitor 的 forever 进程被终止。、
+
+> 这就是"同计数器"的威力：**一个组件的 raise 保护了所有组件**。monitor 只管采集，不需要关心 phase 死活。
 
 #### 完全没有 objection
+
+**核心**：**代码里有延时 ≠ phase 会等待**。phase 的等待条件是"计数归零 + 进程结束"，不是"代码写完"。
+
 ```systemverilog
 task driver::main_phase(uvm_phase phase);
     #100;                         // 不保证能执行完
@@ -657,11 +665,11 @@ endtask
 > **关键**：耗时代码存在并不等于 phase 会等待，必须至少有一个有效 objection。
 
 #### run_phase 的特殊关系
-run_phase 与动态 phase 并行：
+run_phase 与动态 phase 并行——两条线各有独立的 objection 计数器，互不影响：
 
-- main_phase 有 objection 时，run_phase 即使不 raise 也可运行。
-- 只有 run_phase raise，而 main_phase 没有 objection，main_phase 可能被快速跳过。
-- 进入 extract 前，run_phase 与动态 phase 的 objection 都必须结束。
+- **main_phase 有 objection 时，run_phase 即使不 raise 也可运行**：main 的 raise 只保护动态 phase 这条线；run_phase 在另一条线上，只要它自己的进程（如 forever 循环）还没结束，就会一直运行，不需要任何人替它 raise。
+- **只有 run_phase raise，而 main_phase 没有 objection，main_phase 可能被快速跳过**：run 的 raise 只保护 run_phase 自己；main 这条线没人 raise，计数器恒为 0，main 会在 0 时间被跳过（SKIP），里面写的耗时代码不会执行——但测试还能靠 run_phase 继续跑。
+- **进入 extract 前，run_phase 与动态 phase 的 objection 都必须结束**：extract 是 run 阶段的总出口，两条线都必须收工（动态 phase 链全部走完 + run_phase 结束）才能进入，任何一条线还挂着 objection 都进不去。
 
 #### run_phase 与 main_phase 对照
 
@@ -684,13 +692,35 @@ task main_phase(uvm_phase phase);
 
 这个参数代表当前正在执行的 phase 对象。
 
+为什么必须传参——一个组件可实现多个 phase 回调，各自对应不同的 phase 对象：
+
+```systemverilog
+class my_driver extends uvm_driver;
+    task reset_phase(uvm_phase phase);     // [1] 复位阶段的回调
+        phase.raise_objection(this);
+        ...
+        phase.drop_objection(this);
+    endtask
+
+    task main_phase(uvm_phase phase);      // [2] 主激励阶段的回调
+        phase.raise_objection(this);
+        ...
+        phase.drop_objection(this);
+    endtask
+endclass
+```
+
+reset 和 main 是两个不同的 phase 对象，各有自己的 objection 计数器。UVM 调度器跑哪个 phase 就把哪个 phase 对象传进来：raise/drop 中 <code>this</code> 表示"谁在举手"，<code>phase</code> 表示"举到哪个计数器上"。
+
 用途：
 
-- <code>phase.raise_objection()</code>。
-- <code>phase.drop_objection()</code>。
-- <code>phase.jump()</code>。
-- 访问 <code>phase.phase_done</code>。
-- 查询 phase 名称和状态。
+| 用途 | 说明 |
+|------|------|
+| `phase.raise_objection(this)` | 在当前 phase 计数器 +1 |
+| `phase.drop_objection(this)` | 在当前 phase 计数器 -1 |
+| `phase.jump(uvm_reset_phase::get())` | 让当前 phase 所在 schedule 跳到别的 phase（5.1.7） |
+| `phase.phase_done` | 访问当前 phase 的完成计数（objection 数） |
+| 查名称/状态 | 比如 `phase.get_name()`，调试时打印"我现在在哪个 phase" |
 
 function phase 语法上也能 raise/drop，但它不能耗时，通常没有必要用 objection 控制。
 
@@ -704,17 +734,31 @@ driver、monitor、model 通常有 forever 循环，不适合自己决定测试�
 task driver::main_phase(uvm_phase phase);
     phase.raise_objection(this);
 
-    forever begin
+    forever begin                              // [1] 无限循环，永不退出
         seq_item_port.get_next_item(req);
         drive_one_packet(req);
     end
 
-    phase.drop_objection(this);   // 永远执行不到
+    phase.drop_objection(this);   // [2] 永远执行不到：循环出不来，计数无法归零
 endtask
 ```
 
+`forever` 循环根本不会退出，`drop` 这行代码**永远到不了** → 计数永远 ≥1 → phase 卡死。所以 **driver 这类"天生无限循环"的组件，不适合自己决定测试什么时候结束**。
+
 #### 在 get_next_item 后 raise 也不可靠
-如果全平台没有其他 objection，phase 可能在 driver 得到 item 前已经结束。
+
+如果**全平台没人 raise**，phase 在 driver 拿到第一个 item 之前就 SKIP 结束了——你在 `get_next_item` 之后才 raise，**根本没机会执行到**。
+
+```systemverilog
+task driver::main_phase(uvm_phase phase);
+    forever begin
+        seq_item_port.get_next_item(req);   // [1] 可能一直阻塞等待
+        phase.raise_objection(this);        // [2] 太晚：phase 可能已 SKIP，raise 没机会执行
+        drive_one_packet(req);
+        phase.drop_objection(this);
+    end
+endtask
+```
 
 #### 策略一：scoreboard 控制
 ```systemverilog
@@ -722,42 +766,42 @@ task my_scoreboard::main_phase(uvm_phase phase);
     phase.raise_objection(this);
 
     fork
-        forever begin
+        forever begin                        // [1] 一直收期望数据
             packet expected;
             exp_port.get(expected);
             expected_q.push_back(expected);
         end
 
         begin
-            repeat (packet_num) begin
+            repeat (packet_num) begin        // [2] 收够实际数据就停
                 packet actual;
                 act_port.get(actual);
                 compare_one(actual);
             end
         end
-    join_any
+    join_any                                 // [3] 等"收够实际数据"先完成
 
     phase.drop_objection(this);
 endtask
 ```
 
-scoreboard 必须知道预期包数，并正确处理剩余并发进程。
+**思路**：scoreboard 知道**预期包数**（packet_num）——它清楚"验证什么时候算完成"。收够 packet_num 个实际包就 drop。
 
 #### 策略二：sequence 控制
 ```systemverilog
 task case_sequence::body();
     if (starting_phase != null)
-        starting_phase.raise_objection(this);
+        starting_phase.raise_objection(this);   // [1] 发激励前举手
 
     repeat (packet_num)
-        `uvm_do(req)
+        `uvm_do(req)                            // [2] 按计划发完激励
 
     if (starting_phase != null)
-        starting_phase.drop_objection(this);
+        starting_phase.drop_objection(this);    // [3] 发完就放手
 endtask
 ```
 
-UVM 通常推荐由 sequence 控制，因为 sequence 最清楚激励何时开始和结束。
+sequence 是**唯一清楚"激励从哪开始、到哪结束"的组件**——它按计划发 packet_num 个包，发完就知道自己干完了，天然适合控制 objection。这就是 UVM 推荐的做法。
 
 注意：激励发送完不代表 DUT 输出和 scoreboard 比较已经完成，需要 drain time 或显式完成条件。
 
@@ -766,43 +810,52 @@ UVM 通常推荐由 sequence 控制，因为 sequence 最清楚激励何时开�
 ### 5.2.4 set_drain_time 的使用
 DUT 有流水延迟，最后一个输入 transaction 发送完成后，输出可能尚未出现。
 
-```mermaid
-flowchart LR
-    N["输入最后一包完成时间 n"] --> D["DUT 处理延迟 p"]
-    D --> NP["最后输出时间 n+p"]
+```text
+输入最后一包完成时间 n → DUT 处理延迟 p → 最后输出时间 n+p
 ```
 
 若 n 时刻立即 drop，monitor 可能收不到最后输出。
+
+```text
+sequence 发完最后一包 → drop objection → 计数归零 → phase 结束
+                                          ↑
+                          但 DUT 还在流水线里处理最后几包！
+                          monitor/scoreboard 还没收完输出
+```
 
 #### 不推荐每个 sequence 手写固定延时
 ```systemverilog
 repeat (10)
     `uvm_do(req)
 
-#100;                            // 重复、难维护、难适配长短包
+#100;                            // [1] 重复、难维护、难适配长短包
 phase.drop_objection(this);
 ```
 
+问题：每个 sequence 都要猜"等多久"，包长一变就要改。
+
 #### 设置 drain time
+
 ```systemverilog
 task base_test::main_phase(uvm_phase phase);
     phase.phase_done.set_drain_time(
         this,
-        200ns                       // objection 归零后继续等待
+        200ns                       // [1] objection 归零后继续等待
     );
 endtask
 ```
 
+**机制**：`set_drain_time` 挂在 phase_done 上——**当 objection 归零后，phase 不会立刻结束，而是再多等 200ns** 让流水排空。
+
 流程：
 
-```mermaid
-flowchart TD
-    DROP["最后一个 drop"] --> ZERO["total objection = 0"]
-    ZERO --> WAIT["等待 drain_time"]
-    WAIT --> POST["进入 post_main_phase"]
+```text
+最后一个 drop → total objection = 0 
+            → 等待 drain_time (200ns)
+            → 进入 post_main_phase
 ```
 
-drain time 期间当前 phase 的 monitor、scoreboard 等仍可运行。
+**关键细节**：drain time 期间 phase **还没结束**，monitor、scoreboard 等进程**继续运行**——所以最后几包输出能被正常采集和比较。
 
 #### 每个 phase 独立设置
 main_phase 的 drain time 不会自动应用到 configure_phase。
@@ -811,9 +864,11 @@ main_phase 的 drain time 不会自动应用到 configure_phase。
 
 #### drain time 的局限
 
-- 固定最大延时可能拖慢每个测试。
-- 无法精确反映乱序或可变深流水。
-- 若 DUT 永远不输出，drain time 后仍可能假结束。
+| 局限 | 说明 |
+|------|------|
+| 拖慢测试 | 每个测试都固定多等 200ns，不管实际需要多久 |
+| 不精确 | 乱序/可变深度流水，固定延时没法精确匹配 |
+| 可能假结束 | 如果 DUT 卡死永远不输出，drain time 到点照样"结束"——实际上漏了数据 |
 
 更可靠的完成条件可以是 scoreboard 的未匹配队列清空或显式 done 事件。
 
@@ -838,29 +893,30 @@ trace 会显示：
 phase.raise_objection(
     this,
     "case traffic",
-    2                             // 一次增加两个计数
+    2                             // [1] 一次 +2
 );
 
 phase.drop_objection(
     this,
     "case traffic",
-    2                             // 必须对称撤销
+    2                             // [2] 必须对称 -2
 );
 ```
 
-通常一次 raise 1 个最清晰，多计数只在确有多个独立工作单元时使用。
+- 第三个参数是**计数**（一次加减 N）；
+- **必须对称**：raise 2 就必须 drop 2，数量不一致 = 永久挂起；
+- 工程建议：**默认一次 1 个**，只有确有多独立工作单元（比如同时跑两个并发任务）才用多计数。
 
 #### objection 沿树传播
-```mermaid
-flowchart TD
-    SEQ["sequence raise"] --> SQR["sequencer total +1"]
-    SQR --> AGT["agent total +1"]
-    AGT --> ENV["env total +1"]
-    ENV --> TEST["test total +1"]
-    TEST --> TOP["uvm_top total +1"]
+```text
+sequence raise → sequencer total +1 
+               → agent total +1 
+               → env total +1 
+               → test total +1 
+               → uvm_top total +1
 ```
 
-phase 判断的是全局 total 是否归零。
+**每个父节点的 total = 自己的 + 所有子节点传来的**。phase 最终看的是**全局 total 是否归零**。
 
 #### 常见 objection 故障
 

@@ -19,6 +19,8 @@
 11. [UVM phase 的总体执行顺序与 run_test 的起点](#11-uvm-phase-的总体执行顺序与-run_test-的起点)
 12. [run_phase 与 main_phase 的区别](#12-run_phase-与-main_phase-的区别)
 13. [为什么 build_phase 是自顶向下执行？](#13-为什么-build_phase-是自顶向下执行)
+14. [运行中检测到复位，如何跳回 reset_phase？（phase jump）](#14-运行中检测到复位如何跳回-reset_phase-phase-jump)
+15. [UVM 的 objection 机制是什么？有什么用？](#15-uvm-的-objection-机制是什么有什么用)
 
 ---
 
@@ -406,3 +408,66 @@ build_phase 自顶向下是**因果必然**，不是约定：phase 调度器调�
 > 一句话：build 父先子后（父创建子）、connect 子先父后（父用子的成品）、task 并发（fork + 会合）。
 
 ---
+
+## 14. 运行中检测到复位，如何跳回 reset_phase？（phase jump）
+
+### 题目来源
+
+- 思朗 · 数字IC验证 · 校招 · 面经（main_phase 运行中途需要触发复位时的跳转方式）
+
+### 考点
+
+- phase jump 的用法与影响范围
+- 跳转的副作用处理与防死循环
+
+### 参考答案
+
+运行中 DUT 突然复位（比如 rst_n 拉低），可以用 `phase.jump` 让整个 schedule 跳回 reset_phase 重新执行，最常见的就是 `phase.jump(uvm_reset_phase::get())`。
+
+典型做法是 main_phase 里用 fork 开两个并行进程：一个正常发激励，另一个专门盯 rst_n 的下降沿，一发现复位就调用 jump。
+
+跳转有三个注意点：
+
+**第一，影响整个 domain，不只是调用者。** jump 把当前 domain 里所有组件的动态 phase 一起拉回目标 phase，不是只跳自己。
+
+**第二，要处理副作用。** 跳转时当前 phase 的并发进程被终止、没 drop 的 objection 会被清理并报 warning、driver 手里的 req 可能没 item_done、scoreboard 的期望队列和 FIFO 都是旧状态——所以跳回 reset 后，除了复位 DUT，还要清空平台自己的状态（清队列、清 FIFO）。
+
+**第三，防止无限跳转。** jump 回 reset 后 main 会重新执行，如果每次进 main 都无条件 jump 就死循环了，要用一个标志位保证只跳一次。
+
+> 一句话：**运行中复位用 phase.jump 跳回 reset 重新走——记得处理副作用、防死循环，且它影响整个 domain。**
+
+---
+
+## 15. UVM 的 objection 机制是什么？有什么用？
+
+### 题目来源
+
+- 面试书《Cracking Digital VLSI Verification Interview》· 验证方法学章（objection 是什么、有什么用——五星考点）
+- 小鹏汽车 · SOC验证 · 校招（main_phase 写了 raise_objection 而 run_phase 没写，run_phase 能否正常运行）
+- 某TPU公司 · 数字IC验证 · 校招（main_phase 里 raise/drop objection 时 run_phase 是否继续执行）
+
+### 考点
+
+- objection 的本质：task phase 的存活计数
+- raise/drop 配对、计数归零才结束 phase
+- 谁应该控制 objection（sequence 最佳）
+- 与 run_phase 的独立计数关系
+
+### 参考答案
+
+objection 是 UVM 用来**控制 task phase 何时结束**的机制，本质是挂在 phase 上的一个**存活计数**：raise_objection 让计数加一，表示"我还有活没干完，phase 别结束"；drop_objection 让计数减一，表示"我干完了"。计数归零、同时所有 phase 进程都结束，phase 才放行。
+
+用法标准三件套：干活前 raise、跑耗时的激励、干完 drop。
+
+三个关键规则：
+
+**第一，没人 raise 的 phase 会被瞬间跳过。** task phase 里写了耗时代码但没人 raise，UVM 可以在零时间立即结束它——所以耗时代码必须有人"保活"，这就是 trace 里 SKIP 的含义。
+
+**第二，应该由最清楚测试边界的一方控制。** driver、monitor 通常是 forever 循环，不知道测试何时结束，不适合控制 objection；sequence 最清楚激励从哪开始、到哪结束，是 UVM 推荐的控制者。
+
+**第三，run_phase 与动态 phase 各有独立计数。** run_phase 的 raise 只保护 run_phase 自己，不影响 main_phase，反过来也一样。所以"只在 main_phase raise、run_phase 没 raise"时，run_phase 照常能运行；两条线互不干扰，进 extract 前两条线都得归零。
+
+> 一句话：**objection 是 task phase 的存活计数——举手干活、放手交班、计数归零才放行；由最清楚测试边界的 sequence 控制；run_phase 与动态 phase 各持各的证。**
+
+---
+
