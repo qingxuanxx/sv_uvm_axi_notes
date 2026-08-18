@@ -21,6 +21,8 @@
 13. [为什么 build_phase 是自顶向下执行？](#13-为什么-build_phase-是自顶向下执行)
 14. [运行中检测到复位，如何跳回 reset_phase？（phase jump）](#14-运行中检测到复位如何跳回-reset_phase-phase-jump)
 15. [UVM 的 objection 机制是什么？有什么用？](#15-uvm-的-objection-机制是什么有什么用)
+16. [TLM 中 PORT、EXPORT、IMP 的区别？](#16-tlm-中-port-export-imp-的区别)
+17. [验证环境中为什么用 tlm_fifo？它解决了什么问题？](#17-验证环境中为什么用-tlm_fifo它解决了什么问题)
 
 ---
 
@@ -470,4 +472,68 @@ objection 是 UVM 用来**控制 task phase 何时结束**的机制，本质是�
 > 一句话：**objection 是 task phase 的存活计数——举手干活、放手交班、计数归零才放行；由最清楚测试边界的 sequence 控制；run_phase 与动态 phase 各持各的证。**
 
 ---
+
+## 16. TLM 中 PORT、EXPORT、IMP 的区别？
+
+### 题目来源
+
+- 某TPU公司 · 数字IC验证 · 校招 · 面经（对 TLM 端口 port、export、import 的理解）
+- 平头哥 · 数字IC设计验证 · 实习 · 一面（对 TLM 端口的了解与详细介绍）
+- 通用 · 数字IC验证 · 实习 · 基础面经（TLM 通信：port / export / imp / analysis_port）
+
+### 考点
+
+- 三种端口角色的区分（发起 / 转发 / 实现）
+- 控制流与数据流的分离
+- analysis 广播与普通 TLM 的区别
+
+### 参考答案
+
+TLM 是事务级建模，让组件之间通过标准端口交换 transaction，而不是直接访问对方内部。端口分三种角色：
+
+**第一，PORT 是操作发起端。** 谁要主动调用 put/get/write，谁就持有 PORT。判断 PORT 归属看"谁调用函数"，不看数据往哪流——比如 get 操作里数据从对端流向自己，但发起调用的还是自己，所以自己用 PORT。
+
+**第二，EXPORT 是转发端。** 它不发起也不实现，只把接口往下一层透传，常用于父层把子组件的端口暴露给外面，或把外面的请求转给内部，起"传话筒"作用。
+
+**第三，IMP 是实现端。** 它是 TLM 调用链的终点，真正执行 put/get/write 方法的地方。IMP 的第二个参数指明方法写在哪个组件里，写了 IMP 就必须实现对应方法，否则编译报错。
+
+**连接规则**：端口链路必须最终到达 IMP，中间可以有 PORT、EXPORT 透传；方向判断看"谁调用 connect、谁是被连的接口"。
+
+**analysis 是特殊的一类**：analysis_port 只有 write 操作，是一对多广播，发布者不等待订阅者响应，常用于 monitor 把数据同时发给 scoreboard 和覆盖率采集器。
+
+> 一句话：**PORT 发起、EXPORT 转发、IMP 实现，链路必须落到 IMP；判断端口看谁调用不看数据方向；analysis 是"发完不管"的一对多广播。**
+
+---
+
+## 17. 验证环境中为什么用 tlm_fifo？它解决了什么问题？
+
+### 题目来源
+
+- 平头哥 · 数字IC验证 · 校招 · 一面（验证环境中使用 tlm_fifo 的必要性）
+- 小米 · 处理器验证 · 校招（是否接触过 TLM 通信——开放题，可借此展开）
+
+### 考点
+
+- FIFO 的缓冲与节奏解耦作用
+- analysis 广播与 blocking get 的组合
+- FIFO 与直接 IMP 的取舍
+
+### 参考答案
+
+tlm_fifo 本质是组件之间的"中间仓库"：发送方把 transaction 存进去，接收方按自己的节奏取出来，两边互不等待。
+
+它主要解决三个问题：
+
+**第一，节奏解耦。** 发送方（比如 model、monitor）和接收方（scoreboard）的处理速度可能不匹配——发方推完就走，收方可以慢慢处理，数据先存在 FIFO 里，不会因为收方慢而阻塞发方。
+
+**第二，把"广播"变成"可拉取"。** monitor 用 analysis_port 广播数据（发完不管），scoreboard 却需要主动、按自己的节奏取数据——tlm_analysis_fifo 正好把两者接起来：analysis_export 接收广播存入，blocking_get_export 让 scoreboard 主动 get。
+
+**第三，缓冲多路数据并支持调试。** scoreboard 要同步期望值和实际值两路数据，FIFO 让两路各自缓存、谁先到都行；还能用 used/is_empty/is_full 监控流量、flush 清空。
+
+**什么时候不需要 FIFO**：如果接收方只是轻量处理（比如覆盖率采集），数据来一个处理一个，直接用 analysis_imp 更简单，没必要引入 FIFO。
+
+> 一句话：**tlm_fifo 是中间仓库——节奏解耦、把 analysis 广播转成可主动拉取、多路缓冲可调试；接收方处理轻量时直接用 IMP 更简单。**
+
+---
+
 

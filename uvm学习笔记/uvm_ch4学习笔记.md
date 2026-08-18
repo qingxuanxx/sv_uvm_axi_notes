@@ -50,14 +50,16 @@ component 之间需要交换 transaction，例如 monitor 把采集结果传给 
 直接访问 scoreboard：
 ```systemverilog
 class my_monitor extends uvm_monitor;
-    my_scoreboard scb;            // monitor 必须了解 scoreboard 的具体类型
-
+    my_scoreboard scb;            // [1] monitor 握着 scoreboard 的句柄
     task send(packet tr);
-        scb.received_tr = tr;      // 可直接访问其他 public 字段，边界不清晰
+        scb.received_tr = tr;      // [2] 直接塞进别人的 public 字段
     endtask
 endclass
 ```
-这种代码把 monitor 与 scoreboard 强绑定，scoreboard 类型或层次变化时 monitor 也要修改。
+两个问题：
+
+1. **类型耦合**：`my_scoreboard scb`——monitor 必须知道 scoreboard 的**具体类名**。明天 scoreboard 改名、换实现（比如换成继承类），monitor 要跟着改；
+2. **边界不清**：`scb.received_tr = tr`——monitor 直接写别人的字段，**scoreboard 内部怎么存数据、怎么处理，被 monitor 越权干涉了**。边界一破，出 bug 时责任说不清。
 
 #### TLM 通道的价值
 标准 TLM 通道只暴露约定操作：
@@ -188,46 +190,40 @@ uvm_blocking_transport_export #(REQ, RSP);
 ### 4.2.1 PORT 与 EXPORT 的连接
 连接由高控制优先级一方调用：
 ```systemverilog
-A_port.connect(B_export);        // 正确：PORT 主动连接 EXPORT
-// B_export.connect(A_port);     // 错误方向
+A_port.connect(B_export);        // [1] 正确：PORT 主动连 EXPORT
+// B_export.connect(A_port);     // [2] 错误方向
 ```
 
-#### 声明和创建 PORT
+**连接由"高控制优先级"一方发起**——PORT（发起端）主动去 connect 后面的 EXPORT/IMP。方向反了会报错。
+
+#### 端口也要 new 和创建（和组件一样）
+
+**TLM 端口不是自动存在的，要在 build_phase 里 new**（带名字 + parent）：
+
 ```systemverilog
 class producer extends uvm_component;
-    uvm_blocking_put_port #(packet) out_port;
+    uvm_blocking_put_port #(packet) out_port;  // [1] 声明
 
     `uvm_component_utils(producer)
 
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
-        out_port = new("out_port", this); // TLM port 也要创建
+        out_port = new("out_port", this);  // [2] 创建！端口也是组件树的一部分
     endfunction
 endclass
 ```
 
-#### 声明和创建 EXPORT
-```systemverilog
-class bridge extends uvm_component;
-    uvm_blocking_put_export #(packet) in_export;
-
-    `uvm_component_utils(bridge)
-
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        in_export = new("in_export", this);
-    endfunction
-endclass
-```
+EXPORT 同理（`uvm_blocking_put_export #(packet) in_export;` + `new("in_export", this)`）。**忘 new = null 引用，连接时崩**。
 
 #### min_size 与 max_size
+
 PORT 构造函数还可限定连接数量：
 ```systemverilog
 out_port = new(
     "out_port",
     this,
-    1,                            // 至少连接 1 个下游
-    2                             // 最多连接 2 个下游
+    1,                            // min：至少连接 1 个下游
+    2                             // max：最多连接 2 个下游
 );
 ```
 
@@ -237,10 +233,15 @@ out_port = new(
 PORT/EXPORT 只负责调用或转发，不实现实际 put。
 
 ```text
-PORT -> EXPORT -> ???
+PORT -> EXPORT -> ???   ← 断在这里不行
 ```
 
-若没有最终实现端，UVM 会在连接检查阶段报告连接数量或接口错误。
+PORT 只负责**发起调用**、EXPORT 只负责**转发**，它们都**不实现实际方法**（put 的代码不在这里）。链路的**终点必须是 IMP（或 FIFO）**：
+
+```
+PORT -> EXPORT -> IMP   ✅ 完整
+PORT -> EXPORT          ❌ 断了，没人实现 put
+```
 
 ---
 
@@ -249,20 +250,22 @@ IMP 是 implementation port，是 TLM 调用链的最终实现端。
 
 控制优先级：
 ```text
-PORT > EXPORT > IMP
+PORT（发起） > EXPORT（转发） > IMP（实现）
 ```
 
 连接链必须最终到达 IMP：
 ```text
-PORT -> IMP
-PORT -> EXPORT -> IMP
-PORT -> PORT -> EXPORT -> IMP
+PORT -> IMP                    ✅ 直连
+PORT -> EXPORT -> IMP          ✅ 中间透传
+PORT -> PORT -> EXPORT -> IMP  ✅ 多层转发
 ```
 
 #### 常用 IMP
 ```systemverilog
 // 第二个参数 IMP 是最终实现 put/get 等方法的 component 类型。
 uvm_blocking_put_imp       #(T, IMP);
+//                           ↑   ↑
+//                      数据类型  实现类
 uvm_nonblocking_put_imp    #(T, IMP);
 uvm_blocking_get_imp       #(T, IMP);
 uvm_nonblocking_get_imp    #(T, IMP);
@@ -274,29 +277,27 @@ IMP 参数中的 <code>IMP</code> 是实现接口方法的 component 类型。
 
 #### blocking put 的调用链
 ```text
-A.port.put(tr)
- -> B.export.put(tr)
- -> B.imp.put(tr)
- -> B.put(tr)
+A.port.put(tr)          // A 发起
+ -> B.export.put(tr)    // 转发
+ -> B.imp.put(tr)       // 到 IMP
+ -> B.put(tr)           // 真正执行的是 B 的 put 方法！
 ```
 
-真正处理 transaction 的是 component B 的 <code>put</code> 方法。
+真正处理 transaction 的是 component B 的 <code>put</code> 方法——IMP 只是"入口"，具体逻辑在 B 里。
 
 #### 接收 component
 ```systemverilog
 class consumer extends uvm_component;
-    uvm_blocking_put_imp #(packet, consumer) in_imp;
-
-    `uvm_component_utils(consumer)
+    uvm_blocking_put_imp #(packet, consumer) in_imp;  // [1] 声明 IMP，指明实现者是 consumer
 
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
-        in_imp = new("in_imp", this);
+        in_imp = new("in_imp", this);                  // [2] new 创建
     endfunction
 
-    task put(packet tr);
+    task put(packet tr);                               // [3] 实现 put！方法名要和端口操作一致
         `uvm_info("CONS", "received packet", UVM_LOW)
-        tr.print();               // 实际处理逻辑由 component 实现
+        tr.print();
     endtask
 endclass
 ```
@@ -326,7 +327,7 @@ task producer::main_phase(uvm_phase phase);
     repeat (10) begin
         tr = packet::type_id::create("tr");
         assert(tr.randomize());
-        out_port.put(tr);         // 阻塞到 consumer.put 返回
+        out_port.put(tr);         // 阻塞：没收到 consumer.put 返回就不继续
     end
 endtask
 ```
@@ -351,9 +352,20 @@ endtask
 blocking 调用可以落到 task；nonblocking 操作必须由 function 实现，不能消耗仿真时间。
 
 #### 完整的层次化 put 链路
-下面把 PORT-PORT、PORT-EXPORT 和 EXPORT-IMP 串在一起。
 
-最底层 producer：
+一段 TLM 连接 = 一串"传话筒" + 一个"干活的人"。先认识四个角色：
+
+| 角色 | 组件 | 干什么 |
+|------|------|--------|
+| **发起者** | `packet_source` | 真正调 `put` 发数据（最底层） |
+| **外层传话筒** | `source_agent` | 把内部发起者的 PORT 透传给外面 |
+| **接收传话筒** | `sink_agent` | 把 EXPORT 接进内部 |
+| **干活的人** | `packet_sink` | 真正实现 `put`，收到数据存队列 |
+
+**连接规则一句话**：每层只做一件事——**发起者用 PORT 往外发，agent 负责透传，接收方用 EXPORT 接进内部，最后落到 IMP 调用的 put 方法**。
+
+**最底层发起者**（只管发，8 个包）：
+
 ```systemverilog
 class packet_source extends uvm_component;
     uvm_blocking_put_port #(packet) tx_port;
@@ -362,104 +374,77 @@ class packet_source extends uvm_component;
 
     function void build_phase(uvm_phase phase);
         super.build_phase(phase);
-        tx_port = new("tx_port", this);
+        tx_port = new("tx_port", this);        // [1] 端口也要 new
     endfunction
 
     task main_phase(uvm_phase phase);
         packet tr;
-
         repeat (8) begin
             tr = packet::type_id::create("tr");
             assert(tr.randomize());
-            tx_port.put(tr);      // 调用沿整条链向下传播
+            tx_port.put(tr);                   // [2] 发起调用，沿链传播
         end
     endtask
 endclass
 ```
 
-父层 source_agent 向外暴露 PORT：
+**父层透传 PORT**（agent 不干活，只把内部端口"递出去"）：
+
 ```systemverilog
 class source_agent extends uvm_agent;
     packet_source src;
-    uvm_blocking_put_port #(packet) tx_port;
-
-    `uvm_component_utils(source_agent)
-
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        src     = packet_source::type_id::create("src", this);
-        tx_port = new("tx_port", this);
-    endfunction
+    uvm_blocking_put_port #(packet) tx_port;   // [1] agent 自己也开一个 PORT
 
     function void connect_phase(uvm_phase phase);
         super.connect_phase(phase);
-        src.tx_port.connect(this.tx_port); // child PORT -> parent PORT
+        src.tx_port.connect(this.tx_port);     // [2] 内部 PORT → 自己 PORT，透传
     endfunction
 endclass
 ```
 
-接收层使用 EXPORT 向内部 IMP 转发：
+**接收方**（EXPORT 接进内部，IMP 落地）：
+
 ```systemverilog
 class packet_sink extends uvm_component;
-    uvm_blocking_put_imp #(packet, packet_sink) rx_imp;
-    packet received[$];
+    uvm_blocking_put_imp #(packet, packet_sink) rx_imp;   // [1] IMP：实现者是 packet_sink
 
-    `uvm_component_utils(packet_sink)
-
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        rx_imp = new("rx_imp", this);
-    endfunction
-
-    task put(packet tr);
+    task put(packet tr);                                  // [2] 真正干活的 put
         packet copy_tr;
-
-        $cast(copy_tr, tr.clone()); // 保存独立副本
+        $cast(copy_tr, tr.clone());                       // [3] 存副本，防止外部再改
         received.push_back(copy_tr);
     endtask
 endclass
 
 class sink_agent extends uvm_agent;
     packet_sink sink;
-    uvm_blocking_put_export #(packet) rx_export;
-
-    `uvm_component_utils(sink_agent)
-
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        sink      = packet_sink::type_id::create("sink", this);
-        rx_export = new("rx_export", this);
-    endfunction
+    uvm_blocking_put_export #(packet) rx_export;          // [1] EXPORT：转发用
 
     function void connect_phase(uvm_phase phase);
         super.connect_phase(phase);
-        rx_export.connect(sink.rx_imp); // parent EXPORT -> child IMP
+        rx_export.connect(sink.rx_imp);                   // [2] EXPORT → 内部 IMP
     endfunction
 endclass
 ```
 
-env 完成中间连接：
+**env 最后一接，全链贯通**：
+
 ```systemverilog
-function void my_env::connect_phase(uvm_phase phase);
-    super.connect_phase(phase);
-    src_agt.tx_port.connect(sink_agt.rx_export);
-endfunction
+src_agt.tx_port.connect(sink_agt.rx_export);   // 外部 PORT → 外部 EXPORT，中间一接完成
 ```
 
-最终调用链：
+**最终调用链**（记住这一条就够了）：
+
 ```text
-src.tx_port
- -> src_agt.tx_port
- -> sink_agt.rx_export
- -> sink.rx_imp
- -> sink.put(tr)
+src.tx_port → src_agt.tx_port → sink_agt.rx_export → sink.rx_imp → sink.put(tr)
+    发起             透传               转发             到 IMP        真正干活
 ```
 
-调试时从最终 <code>put</code> 反向检查，每一级的操作族和 transaction 类型必须一致。
+中间全是传话筒，**只有最后的 `sink.put(tr)` 在干活**。调试时从终点 put 反向逐环检查，每级端口操作族（put/get）和 transaction 类型（packet）必须一致。
 
 ---
 
-### 4.2.4 EXPORT 与 IMP 的连接
+### 4.2.4 EXPORT 与 IMP 的连接（非重点：4.2.4~4.2.6）
+
 EXPORT 也可直接连接到低优先级 IMP：
 ```systemverilog
 function void bridge::connect_phase(uvm_phase phase);
@@ -533,7 +518,7 @@ source.out_port.connect(parent.C_export);
 
 ---
 
-### 4.2.7 blocking_get 端口的使用
+### 4.2.7 blocking_get 端口的使用（非重点：4.2.7~4.2.9）
 get 中，调用者主动索取数据，因此调用者使用 PORT。
 
 ```text
@@ -759,114 +744,101 @@ peek 返回对象句柄；若调用者会修改对象，应先 clone，避免间
 
 ## 4.3 UVM 中的通信方式
 ### 4.3.1 UVM 中的 analysis 端口
-analysis_port 用于发布/订阅式广播。
+analysis_port 用于**发布/订阅式广播**：发布者（monitor）把数据"扔出去"，**所有连着的订阅者都能收到**，发布者不管谁收、收几个。
 
 特点：
 
-- 一对多连接。
-- 只有 <code>write</code> 操作。
-- write 是 function。
-- 发布者不等待订阅者响应。
-- 一个 transaction 可同时送到 scoreboard、coverage collector 等。
+| 特点 | 含义 |
+|------|------|
+| 一对多 | 一个 analysis_port 可以连多个订阅者 |
+| 只有 write 操作 | 没有 put/get/try，就一个 write() |
+| write 是 function | 不能阻塞、不能耗时（立即返回） |
+| 不等待响应 | 发布者 write 完就走，不等订阅者处理完 |
+| 一次广播多方收 | monitor 采到的数据同时给 scoreboard、coverage collector |
 
-#### 发布者
+为什么 write 必须是 function：因为广播是"发完不管"——如果 write 能阻塞，发布者就得等所有订阅者处理完，一对多就变成"一对多排队"，失去广播意义。
+
+#### 发布者**（monitor）**——持有 analysis_port，调 write：
 ```systemverilog
 class my_monitor extends uvm_monitor;
-    uvm_analysis_port #(packet) ap;
-
-    `uvm_component_utils(my_monitor)
-
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        ap = new("ap", this);
-    endfunction
+    uvm_analysis_port #(packet) ap;      // [1] 发布者：analysis_port
 
     task main_phase(uvm_phase phase);
-        packet tr;
         forever begin
             tr = collect_packet();
-            ap.write(tr);         // 广播给所有已连接订阅者
+            ap.write(tr);                // [2] 广播，不等待
         end
     endtask
 endclass
 ```
 
-#### 订阅者
+#### 订阅者**（coverage_collector）**——持有 analysis_imp，实现 write：
 ```systemverilog
 class coverage_collector extends uvm_component;
-    uvm_analysis_imp #(packet, coverage_collector) imp;
+    uvm_analysis_imp #(packet, coverage_collector) imp;  // [1] 订阅者：analysis_imp
 
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        imp = new("imp", this);
-    endfunction
-
-    function void write(packet tr);
-        sample_packet(tr);        // write 不能阻塞
+    function void write(packet tr);      // [2] 实现 write（注意是 function！）
+        sample_packet(tr);
     endfunction
 endclass
 ```
 
+**注意**：订阅者的 write 也必须是 **function**（因为要匹配发布者的非阻塞语义）。
+
 #### 一对多连接
+
 ```systemverilog
-mon.ap.connect(scb.input_imp);
-mon.ap.connect(cov.imp);
+mon.ap.connect(scb.input_imp);   // [1] 连 scoreboard
+mon.ap.connect(cov.imp);         // [2] 同一个 ap 再连 coverage —— 一对多！
 ```
 
-每个 analysis 链仍必须最终到达 analysis_imp、subscriber 或 FIFO 中的实现端。
+一个 monitor 的数据同时进 scoreboard（比对）和 coverage（采样）——**这就是验证平台里 analysis 存在的最大理由**。
+
+**注意**：analysis 链的终点也必须是 **analysis_imp / subscriber / FIFO**（不能断在 PORT/EXPORT 上，和 4.2 的规则一致）。
 
 #### 句柄共享风险
-analysis_port 向多个订阅者传递的是对象句柄。
+analysis 传的是对象句柄（不是副本）——多个订阅者收到的是同一个对象：
 
-若某订阅者修改 transaction，其他订阅者可能看到修改后的对象。
+```systemverilog
+scb 收到 tr 后改了 tr.data = 0;   // [1] 改了共享对象
+cov 再收时看到的 data 已经变了！  // [2] 被坑了
+```
 
 建议：
 
-- monitor 发布后不要继续修改对象。
-- 需要修改时先 clone/copy。
-- 订阅者默认把输入 transaction 当作只读数据。
+- **monitor 发布后不要再修改对象**。
+- 订阅者**需要修改就先 clone/copy**。
+- 订阅者**默认把收到的 transaction 当只读**。
 
 ---
 
 ### 4.3.2 一个 component 内有多个 IMP
-scoreboard 常同时接收 model 的 expected 和 monitor 的 actual。
+scoreboard 要收两路：
 
-两个普通 analysis_imp 都会要求名为 <code>write</code> 的函数，无法区分来源。
+- model 发来的 **expected**（期望值）
+- monitor 发来的 **actual**（实际值）
+
+如果直接用两个 `uvm_analysis_imp`，**两个 IMP 都要求实现叫 `write` 的方法**——同一个类里不能有两个同名 `write`，无法区分数据来自哪一路（问题所在）。
 
 #### 声明不同 IMP 后缀
 ```systemverilog
-`uvm_analysis_imp_decl(_expected)
-`uvm_analysis_imp_decl(_actual)
+`uvm_analysis_imp_decl(_expected)   // [1] 宏：生成 uvm_analysis_imp_expected 类型
+`uvm_analysis_imp_decl(_actual)     // [2] 宏：生成 uvm_analysis_imp_actual 类型
+```
 
+这两个宏**自动生成两个新端口类型**，分别要求实现**带后缀的方法**：
+
+```systemverilog
 class my_scoreboard extends uvm_scoreboard;
-    uvm_analysis_imp_expected #(packet, my_scoreboard) exp_imp;
-    uvm_analysis_imp_actual   #(packet, my_scoreboard) act_imp;
+    uvm_analysis_imp_expected #(packet, my_scoreboard) exp_imp;   // [3] 期望输入口
+    uvm_analysis_imp_actual   #(packet, my_scoreboard) act_imp;   // [4] 实际输入口
 
-    packet expected_q[$];
-
-    `uvm_component_utils(my_scoreboard)
-
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        exp_imp = new("exp_imp", this);
-        act_imp = new("act_imp", this);
+    function void write_expected(packet tr);   // [5] expected 来了 → 这个函数
+        expected_q.push_back(tr);
     endfunction
 
-    function void write_expected(packet tr);
-        expected_q.push_back(tr); // model 输出进入期望队列
-    endfunction
-
-    function void write_actual(packet tr);
-        packet expected;
-
-        if (expected_q.size() == 0) begin
-            `uvm_error("SCB", "actual arrived before expected")
-            return;
-        end
-
-        expected = expected_q.pop_front();
-        if (!tr.compare(expected))
-            `uvm_error("SCB", "packet mismatch")
+    function void write_actual(packet tr);     // [6] actual 来了 → 这个函数
+        // 取出期望、比对
     endfunction
 endclass
 ```
@@ -879,91 +851,68 @@ _actual   -> write_actual
 ```
 
 #### 双 analysis IMP 的完整连接
-model 和 monitor 分别发布期望值、实际值：
+
+scoreboard 收两路数据：model 发**期望值**（expected），monitor 发**实际值**（actual）。两个数据源各发各的：
+
 ```systemverilog
 class my_model extends uvm_component;
-    uvm_analysis_port #(packet) exp_ap;
-    // 计算完成后调用 exp_ap.write(expected)
+    uvm_analysis_port #(packet) exp_ap;   // [1] model 的发布口：发期望
+    // 计算完成后 exp_ap.write(expected)
 endclass
 
 class my_monitor extends uvm_monitor;
-    uvm_analysis_port #(packet) act_ap;
-    // 采集完成后调用 act_ap.write(actual)
+    uvm_analysis_port #(packet) act_ap;   // [2] monitor 的发布口：发实际
+    // 采集完成后 act_ap.write(actual)
 endclass
 ```
 
-scoreboard 接收时复制句柄并按来源处理：
+scoreboard 用两个带后缀的 IMP 接收，核心逻辑一句话：**期望入队、实际取队头比对**：
+
 ```systemverilog
-`uvm_analysis_imp_decl(_expected)
-`uvm_analysis_imp_decl(_actual)
+`uvm_analysis_imp_decl(_expected)     // [1] 宏：生成"期望输入口"类型
+`uvm_analysis_imp_decl(_actual)       // [2] 宏：生成"实际输入口"类型
 
 class my_scoreboard extends uvm_scoreboard;
-    uvm_analysis_imp_expected #(packet, my_scoreboard) exp_imp;
-    uvm_analysis_imp_actual   #(packet, my_scoreboard) act_imp;
+    uvm_analysis_imp_expected #(packet, my_scoreboard) exp_imp;   // [3] 期望输入口
+    uvm_analysis_imp_actual   #(packet, my_scoreboard) act_imp;   // [4] 实际输入口
     packet expected_q[$];
-    int compare_count;
 
-    `uvm_component_utils(my_scoreboard)
-
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        exp_imp = new("exp_imp", this);
-        act_imp = new("act_imp", this);
-    endfunction
-
-    function void write_expected(packet tr);
+    function void write_expected(packet tr);   // [5] 期望来了：入队（先复制防被改）
         packet copy_tr;
-
-        $cast(copy_tr, tr.clone()); // analysis 广播传句柄，入队前复制
+        $cast(copy_tr, tr.clone());
         expected_q.push_back(copy_tr);
     endfunction
 
-    function void write_actual(packet tr);
+    function void write_actual(packet tr);     // [6] 实际来了：取队头期望来比
         packet expected;
-
         if (expected_q.size() == 0) begin
-            `uvm_error("SCB", "unexpected actual packet")
+            `uvm_error("SCB", "unexpected actual packet")   // [7] 实际先到 = 有异常
             return;
         end
-
         expected = expected_q.pop_front();
-        compare_count++;
-
-        if (!tr.compare(expected)) begin
+        if (!tr.compare(expected))
             `uvm_error("SCB", "actual packet differs from expected")
-            expected.print();
-            tr.print();
-        end
     endfunction
 endclass
 ```
 
-env 连接两路：
+env 把两路接进来：
+
 ```systemverilog
-function void my_env::connect_phase(uvm_phase phase);
-    super.connect_phase(phase);
-    mdl.exp_ap.connect(scb.exp_imp);
-    o_agt.ap.connect(scb.act_imp);
-endfunction
+mdl.exp_ap.connect(scb.exp_imp);   // [1] 期望路
+o_agt.ap.connect(scb.act_imp);     // [2] 实际路
 ```
 
-这种结构要求两个 <code>write_xxx</code> 足够轻量，因为 analysis write 是 function，不能阻塞等待另一条输入。
+**两个注意点**：
 
-#### agent 暴露 monitor 的 analysis_port
-推荐让 agent 对外提供协议观察端口：
-```systemverilog
-function void my_agent::connect_phase(uvm_phase phase);
-    super.connect_phase(phase);
-    ap = mon.ap;                  // 复用 monitor 的端口句柄
-endfunction
-```
-
-env 只需连接 <code>o_agt.ap</code>，不必深入访问 <code>o_agt.mon.ap</code>。
+1. **write_xxx 必须轻量**：write 是 function 不能阻塞——不能在 write_actual 里"等期望入队"，只能"没有就报错返回"（就是上面 [7] 的处理）。
+2. **入队前 clone**：analysis 传句柄，期望入队前复制，防止后面被外部修改污染队列。
 
 ---
 
 ### 4.3.3 使用 FIFO 通信
-analysis FIFO 把非阻塞广播转换为可阻塞拉取。
+
+**FIFO = 中间仓库**：把 monitor 的"广播"（analysis，发完不管）转换成 scoreboard 的"拉取"（get，主动要）——发送者只管往里存，接收者按自己节奏取。
 
 ```text
 monitor.analysis_port
@@ -975,201 +924,142 @@ FIFO.analysis_export -> FIFO buffer -> FIFO.blocking_get_export
                                 scoreboard.blocking_get_port
 ```
 
-#### env 声明 FIFO
+#### 搭建：env 建 FIFO，scoreboard 建 get port
+
+env 里建两个"仓库"（期望一个、实际一个）：
+
 ```systemverilog
 uvm_tlm_analysis_fifo #(packet) exp_fifo;
 uvm_tlm_analysis_fifo #(packet) act_fifo;
-
-function void my_env::build_phase(uvm_phase phase);
-    super.build_phase(phase);
-
-    exp_fifo = new("exp_fifo", this);
-    act_fifo = new("act_fifo", this);
-endfunction
+// build_phase 里 new("exp_fifo", this) / new("act_fifo", this)
 ```
 
-#### scoreboard 声明 get port
-```systemverilog
-class my_scoreboard extends uvm_scoreboard;
-    uvm_blocking_get_port #(packet) exp_port;
-    uvm_blocking_get_port #(packet) act_port;
+scoreboard 声明两个"取货口"：
 
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        exp_port = new("exp_port", this);
-        act_port = new("act_port", this);
-    endfunction
-endclass
+```systemverilog
+uvm_blocking_get_port #(packet) exp_port;
+uvm_blocking_get_port #(packet) act_port;
 ```
 
-#### env 连接
+#### 连接：一边存、一边取
+
 ```systemverilog
-function void my_env::connect_phase(uvm_phase phase);
-    super.connect_phase(phase);
+mdl.ap.connect(exp_fifo.analysis_export);           // [1] model 的广播 → 存进仓库
+scb.exp_port.connect(exp_fifo.blocking_get_export); // [2] scoreboard 从仓库取
 
-    mdl.ap.connect(exp_fifo.analysis_export);
-    scb.exp_port.connect(exp_fifo.blocking_get_export);
-
-    o_agt.ap.connect(act_fifo.analysis_export);
-    scb.act_port.connect(act_fifo.blocking_get_export);
-endfunction
+o_agt.ap.connect(act_fifo.analysis_export);
+scb.act_port.connect(act_fifo.blocking_get_export);
 ```
 
-#### scoreboard 主动获取
-```systemverilog
-task my_scoreboard::main_phase(uvm_phase phase);
-    packet expected;
-    packet actual;
+#### 用法：scoreboard 按自己节奏取（简单版）
 
+```systemverilog
+forever begin
+    exp_port.get(expected);   // [1] 等仓库里有期望
+    act_port.get(actual);     // [2] 等仓库里有实际
+    if (!actual.compare(expected))
+        `uvm_error("SCB", "compare failed")   // [3] 比较
+end
+```
+
+**FIFO 的好处**：发送者（model/monitor）和接收者（scoreboard）**节奏解耦**——发方推完就走，收方有空才取；scoreboard 还能用 blocking get 主动等。
+
+#### 更稳的双 FIFO scoreboard（先收齐再比）
+
+上面简单版**边收边比**，如果 expected 和 actual 到达节奏差很多会卡。稳健版改成 **三个并行进程：各收各的、专门比较**：
+
+```systemverilog
+task main_phase(uvm_phase phase);
+    fork
+        collect_expected();   // [1] 专收期望，存队列
+        collect_actual();     // [2] 专收实际，存队列
+        compare_queues();     // [3] 两边都有货才取出来比
+    join
+endtask
+
+// collect_expected：exp_port.get(tr) → expected_q.push_back(tr)
+// collect_actual：  act_port.get(tr) → actual_q.push_back(tr)
+
+task compare_queues();
     forever begin
-        exp_port.get(expected);   // 可按 scoreboard 节奏阻塞等待
-        act_port.get(actual);
-
+        wait (expected_q.size() != 0);   // [4] 等期望有货
+        wait (actual_q.size()   != 0);   // [5] 等实际有货
+        expected = expected_q.pop_front();
+        actual   = actual_q.pop_front();
         if (!actual.compare(expected))
-            `uvm_error("SCB", "compare failed")
+            `uvm_error("SCB", "mismatch")
     end
 endtask
 ```
 
-FIFO 的优势：
+**分工**：两个"收货员"各收各的存队列，一个"比对员"两边都有货才取一对来比——**谁快谁先存着，互不阻塞**。
 
-- 隐藏 IMP 细节。
-- 允许发送者和接收者以不同节奏运行。
-- scoreboard 可主动 get。
-- 多路输入更易组成端口/FIFO 数组。
+#### 仿真结束检查残留（check_phase）
 
-#### 更稳健的双 FIFO scoreboard
-若 expected 和 actual 到达时间差异较大，可分别接收后再比较：
-```systemverilog
-class my_scoreboard extends uvm_scoreboard;
-    uvm_blocking_get_port #(packet) exp_port;
-    uvm_blocking_get_port #(packet) act_port;
-
-    packet expected_q[$];
-    packet actual_q[$];
-    int matched_count;
-
-    `uvm_component_utils(my_scoreboard)
-
-    task main_phase(uvm_phase phase);
-        fork
-            collect_expected();
-            collect_actual();
-            compare_queues();
-        join
-    endtask
-
-    task collect_expected();
-        packet tr;
-
-        forever begin
-            exp_port.get(tr);      // 只负责接收 expected
-            expected_q.push_back(tr);
-        end
-    endtask
-
-    task collect_actual();
-        packet tr;
-
-        forever begin
-            act_port.get(tr);      // 只负责接收 actual
-            actual_q.push_back(tr);
-        end
-    endtask
-
-    task compare_queues();
-        packet expected;
-        packet actual;
-
-        forever begin
-            wait (expected_q.size() != 0);
-            wait (actual_q.size()   != 0);
-
-            expected = expected_q.pop_front();
-            actual   = actual_q.pop_front();
-            matched_count++;
-
-            if (!actual.compare(expected))
-                `uvm_error(
-                    "SCB",
-                    $sformatf("mismatch at packet %0d", matched_count)
-                )
-        end
-    endtask
-endclass
-```
-
-仿真结束时检查残留：
 ```systemverilog
 function void my_scoreboard::check_phase(uvm_phase phase);
-    super.check_phase(phase);
-
     if (expected_q.size() != 0)
-        `uvm_error(
-            "SCB",
-            $sformatf("%0d expected packets remain", expected_q.size())
-        )
-
+        `uvm_error("SCB", "%0d expected packets remain", expected_q.size())
     if (actual_q.size() != 0)
-        `uvm_error(
-            "SCB",
-            $sformatf("%0d actual packets remain", actual_q.size())
-        )
+        `uvm_error("SCB", "%0d actual packets remain", actual_q.size())
 endfunction
 ```
 
-若 DUT 支持乱序输出，不能简单按队头比较，应按 transaction ID、tag 或地址建立关联数组匹配。
+**为什么查残留**：仿真结束队列里还有没比完的数据 = **DUT 少输出或多输出**（漏了尾巴或多了货）——这是"最后一包没比较"那类 bug 的检查点。
 
----
+#### 乱序输出的提醒
+
+**如果 DUT 支持乱序输出，不能按队头一比一**——expected 和 actual 到达顺序可能不同，简单 `pop_front` 会误报 mismatch。**应按 transaction 的 ID/tag/地址建关联数组匹配**。
 
 ### 4.3.4 FIFO 上的端口及调试
-<code>uvm_tlm_fifo</code> 提供 put/get/peek 等多组接口。
 
-<code>uvm_tlm_analysis_fifo</code> 在此基础上增加 analysis_export 和 write 接口。
+**FIFO 是个"多面手"**：既能当仓库（analysis 写入、get 取出），还自带广播口和调试函数。
 
-#### get 与 peek
+#### 两种 FIFO
+
+| FIFO 类型 | 能力 |
+|-----------|------|
+| `uvm_tlm_fifo` | put/get/peek 等基础接口 |
+| `uvm_tlm_analysis_fifo` | 在基础上**增加 analysis_export + write**（能被 monitor 广播写入）——验证平台用这个 |
+
+#### get 与 peek 的区别
 
 | 操作 | 返回队头 transaction | 从 FIFO 删除 |
-|------|----------------------|--------------|
-| get | 是 | 是 |
-| peek | 是 | 否 |
+|------|:---:|:---:|
+| get | 是 | **是** |
+| peek | 是 | **否**（只看不取） |
 
-peek 适合预览下一笔数据，真正消费仍需 get。
+peek = **预览**队头数据（比如先看看是不是要的那笔），真正消费还得 get。
 
-#### put_ap 与 get_ap
-FIFO 收到 put 时，还会通过 <code>put_ap</code> 发布该 transaction。
-
-FIFO 完成 get 时，会通过 <code>get_ap</code> 发布被取走的 transaction。
+#### FIFO 自带的两个广播口（put_ap / get_ap）
 
 ```text
-put -> FIFO buffer + put_ap.write(tr)
-get -> pop FIFO buffer + get_ap.write(tr)
+put → 存入 FIFO 缓冲区 + put_ap.write(tr)   // [1] 存进去时广播一份
+get → 从 FIFO 弹出     + get_ap.write(tr)   // [2] 取出来时广播一份
 ```
 
-可用它们做流量监控或覆盖率收集。
+**用途**：流量监控、覆盖率收集——不用改 FIFO 内部，监听这两个口就能统计"存了多少、取了多少"。
 
-#### FIFO 调试函数
+#### FIFO 调试函数（查表）
 
 | 函数 | 作用 |
 |------|------|
-| <code>used()</code> | 当前缓存 transaction 数 |
-| <code>is_empty()</code> | FIFO 是否为空 |
-| <code>is_full()</code> | FIFO 是否已满 |
-| <code>size()</code> | FIFO 容量上限 |
-| <code>flush()</code> | 清空缓存 |
+| `used()` | 当前缓存多少笔 |
+| `is_empty()` | 是否为空 |
+| `is_full()` | 是否已满 |
+| `size()` | 容量上限 |
+| `flush()` | 清空缓存 |
 
 #### FIFO 容量
+
 ```systemverilog
-fifo = new(
-    "fifo",
-    this,
-    16                            // 最多缓存 16 笔 transaction
-);
+fifo = new("fifo", this, 16);   // [1] 最多缓存 16 笔
 ```
 
-容量为 0 表示不限制大小。
+**容量为 0 = 不限制大小**。
 
 #### 复位时清空
+
 ```systemverilog
 function void my_env::flush_fifos();
     exp_fifo.flush();
@@ -1177,64 +1067,59 @@ function void my_env::flush_fifos();
 endfunction
 ```
 
-清空前要确认阻塞 get、scoreboard 队列和 DUT 流水状态，避免只清一半造成错位。
-
----
-
+**清空不是"点一下就完"**：清空前要确认**阻塞 get、scoreboard 队列和 DUT 流水状态**——如果 scoreboard 还卡在 `get()` 等数据，或 DUT 流水里还有货，只清 FIFO 会造成**新旧数据错位**（只清一半比不清更乱）。
 ### 4.3.5 用 FIFO 还是用 IMP
+
+**一句话决策**：**简单订阅用 IMP（轻、直接），需要节奏解耦/主动拉取用 FIFO（稳、灵活）**。
 
 | 对比 | 直接 IMP | FIFO |
 |------|----------|------|
-| 代码路径 | 短，write 立即进入接收者 | 中间增加缓存 |
-| 接收方式 | 被动回调 | 主动 get |
-| 节奏解耦 | 弱 | 强 |
-| 多输入 | 需要多个 IMP 后缀 | 可使用 FIFO/port 数组 |
-| 延迟 | 基本无缓冲延迟 | 由队列解耦 |
-| 调试 | 连接直接 | 可查看 used/empty/full |
-| 适合场景 | coverage、简单订阅 | scoreboard、速率不匹配 |
+| 代码路径 | 短，write 立即进接收者 | 中间加缓存 |
+| 接收方式 | 被动回调（数据来就触发） | 主动 get（自己拉） |
+| 节奏解耦 | 弱（发一个处理一个） | 强（发存取拉互不阻塞） |
+| 多输入 | 要多个 IMP 后缀 | 可用 FIFO/port 数组 |
+| 延迟 | 基本无缓冲 | 由队列解耦 |
+| 调试 | 连接直接 | 可看 used/empty/full |
+| 适合 | coverage、简单订阅 | scoreboard、速率不匹配 |
 
-#### 直接 IMP 更适合
+#### 什么时候选 IMP
 
-- 简单 analysis subscriber。
-- 功能覆盖率采集。
-- write 中只做轻量、无阻塞处理。
+- 简单 analysis subscriber（比如覆盖率采集）；
+- write 里只做**轻量、不阻塞**的处理；
 - 输入数量少且固定。
 
-#### FIFO 更适合
+#### 什么时候选 FIFO
 
-- scoreboard 需要主动同步多路数据。
-- 接收处理可能晚于发送。
-- 多通道可用数组和循环构建。
+- scoreboard 要**主动同步**多路数据；
+- 接收处理可能**晚于**发送（速率不匹配）；
+- 多通道（用数组 + 循环构建）；
 - 需要缓存深度和 flush 调试能力。
 
-#### 多端口数组
+#### 多端口数组（多通道写法）
+
 ```systemverilog
-uvm_blocking_get_port #(packet) exp_port[16];
-uvm_tlm_analysis_fifo #(packet) exp_fifo[16];
+uvm_blocking_get_port #(packet) exp_port[16];   // [1] 16 个取货口
+uvm_tlm_analysis_fifo #(packet) exp_fifo[16];   // [2] 16 个仓库
 
-function void build_phase(uvm_phase phase);
-    super.build_phase(phase);
+// build：foreach 循环创建，名字带索引
+foreach (exp_port[i]) begin
+    exp_port[i] = new($sformatf("exp_port_%0d", i), this);
+    exp_fifo[i] = new($sformatf("exp_fifo_%0d", i), this);
+end
 
-    foreach (exp_port[i]) begin
-        exp_port[i] = new($sformatf("exp_port_%0d", i), this);
-        exp_fifo[i] = new($sformatf("exp_fifo_%0d", i), this);
-    end
-endfunction
-```
-
-连接：
-```systemverilog
+// 连接：每个通道 仓库←model、取货口←仓库
 foreach (exp_port[i]) begin
     mdl.ap[i].connect(exp_fifo[i].analysis_export);
     exp_port[i].connect(exp_fifo[i].blocking_get_export);
 end
 ```
 
-并发读取时循环变量要 automatic：
+**并发读取的坑——循环变量要 automatic**：
+
 ```systemverilog
 foreach (exp_port[i]) begin
     fork
-        automatic int channel = i;
+        automatic int channel = i;   // [3] 关键！否则所有进程共享同一个 i
         forever begin
             packet tr;
             exp_port[channel].get(tr);
@@ -1244,41 +1129,24 @@ foreach (exp_port[i]) begin
 end
 ```
 
-#### TLM 连接故障定位表
+`automatic int channel = i` 把 i 的**当前值复制一份**给每个进程——不加 automatic，fork 的进程运行时 i 已经循环到末尾，**全部通道串线**（这是经典 bug）。
+
+#### TLM 故障定位表（排障查这个）
 
 | 现象 | 常见原因 | 检查方法 |
 |------|----------|----------|
-| connection count 为 0 | 端口没有 connect 或链路没到 IMP | 打印 topology，逐级检查 |
-| No field named put/get/write | IMP 所在 component 未实现规定方法 | 对照操作族补接口 |
+| connection count 为 0 | 没 connect 或链路没到 IMP | 打印 topology 逐级查 |
+| No field named put/get/write | IMP 组件没实现对应方法 | 对照操作族补接口 |
 | 类型不兼容 | transaction 参数或 blocking 属性不一致 | 对照完整类型声明 |
-| write 后数据错乱 | 多订阅者共享同一对象句柄 | 发布后只读，入队前 clone |
-| blocking get 永久等待 | 上游未写 FIFO 或连接方向错误 | 查看 FIFO.used 与 write 日志 |
-| FIFO 持续增长 | consumer 速度不足或没有 get | 监控 used/is_full |
-| 最后一批数据残留 | phase 提前结束或 drain 不足 | check_phase 检查队列 |
-| 多通道串线 | 数组索引或 automatic 变量错误 | 打印 channel 与 transaction ID |
+| write 后数据错乱 | 多订阅者共享句柄 | 发布后只读、入队前 clone |
+| blocking get 永久等待 | 上游没写 FIFO 或连错方向 | 看 FIFO.used 与 write 日志 |
+| FIFO 持续增长 | 消费太慢或没人 get | 监控 used/is_full |
+| 最后数据残留 | phase 提前结束或 drain 不足 | check_phase 查队列 |
+| 多通道串线 | 数组索引或 automatic 变量错 | 打印 channel 与 transaction ID |
 
-推荐调试顺序：
+**推荐调试顺序**（按步骤走）：print_topology → 确认端口都 new → 从 PORT 沿链追到 IMP → 核对操作族 → 核对类型 → 终点打印日志 → FIFO 看 used/empty/full → check_phase 查残留。
 
-1. 用 <code>uvm_top.print_topology()</code> 确认 component 层次。
-2. 确认每个 TLM 端口已在 build_phase 创建。
-3. 从发起 PORT 沿 connect 链追到最终 IMP。
-4. 核对 put/get/analysis 操作族。
-5. 核对 transaction 参数类型。
-6. 在最终 put/get/write 中打印调用日志。
-7. FIFO 结构检查 used、empty、full。
-8. 在 check_phase 检查所有缓存和期望队列。
-
-设计评审时再确认：
-
-- 通信究竟需要推送、拉取还是请求-响应？
-- 接收者是否需要缓存和节奏解耦？
-- analysis 订阅者会不会修改共享 transaction？
-- FIFO 容量、复位 flush 和结束残留是否有明确策略？
-- 多通道是否携带可定位的 channel/transaction ID？
-- 所有阻塞调用是否都有机会解除阻塞？
-
----
-
+**设计评审自查**（6 问）：推送还是拉取？要不要缓存解耦？订阅者会改共享对象吗？FIFO 容量/复位 flush/残留有策略吗？多通道有 channel/ID 标识吗？所有阻塞调用都能解除阻塞吗？
 ## 本章总结（4.1-4.3）
 ### 学习重点排序
 
