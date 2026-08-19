@@ -39,9 +39,9 @@
 
 ---
 
-## 9.1 callback 机制
+## 9.1 callback 机制（🟡 中）
 
-### 9.1.1 广义的 callback 函数
+### 9.1.1 广义的 callback 函数（🟡 中）
 callback 是框架在预定时机主动调用用户扩展逻辑。
 SystemVerilog 的 `post_randomize()` 是最简单的 callback。
 手工计算 CRC：
@@ -86,7 +86,7 @@ callback      : library/framework calls user extension
 
 ---
 
-### 9.1.2 callback 机制的必要性
+### 9.1.2 callback 机制的必要性（🟡 中）
 验证平台开发者无法预知所有使用者需求。
 成熟 VIP 的 driver 在发送 transaction 前，用户可能希望：
 - 写入包序号。
@@ -120,7 +120,7 @@ callback 适合“小范围行为差异”。
 
 ---
 
-### 9.1.3 UVM 中 callback 机制的原理
+### 9.1.3 UVM 中 callback 机制的原理（🟡 中）
 仅定义一个 virtual 方法不够。
 假设从 `my_driver` 派生 `new_driver` 并重写 `pre_tran()`，但验证平台仍实例化 `my_driver`，新方法不会运行。
 UVM callback 引入两个角色：
@@ -151,9 +151,9 @@ callback pool for this driver
 
 ---
 
-### 9.1.4 callback 机制的使用
+### 9.1.4 callback 机制的使用（🟡 中）
 
-#### 第一步：定义 callback 基类
+**第一步：定义 callback 基类**
 
 ```systemverilog
 class driver_callback extends uvm_callback;
@@ -174,7 +174,7 @@ endclass
 扩展方法必须声明为 virtual。
 传入 driver 句柄可访问上下文；`ref tr` 允许 callback 修改原 transaction。
 
-#### 第二步：声明 callback pool
+**第二步：声明 callback pool**
 
 ```systemverilog
 typedef uvm_callbacks #(
@@ -186,7 +186,7 @@ typedef uvm_callbacks #(
 第一个参数是使用 callback 的组件类型。
 第二个参数是 callback 基类类型。
 
-#### 第三步：在 driver 中注册 callback 类型
+**第三步：在 driver 中注册 callback 类型**
 
 ```systemverilog
 class my_driver extends uvm_driver #(my_transaction);
@@ -202,7 +202,7 @@ endclass
 typedef class driver_callback;
 ```
 
-#### 第四步：在扩展点执行 callback
+**第四步：在扩展点执行 callback**
 
 ```systemverilog
 task my_driver::main_phase(uvm_phase phase);
@@ -229,7 +229,7 @@ endtask
 | `pre_tran(this, req)` | 具体回调方法及实参 |
 到这里属于 VIP/平台开发者的工作。
 
-#### 第五步：用户实现具体 callback
+**第五步：用户实现具体 callback**
 
 ```systemverilog
 class append_id_callback extends driver_callback;
@@ -249,7 +249,7 @@ class append_id_callback extends driver_callback;
 endclass
 ```
 
-#### 第六步：实例化并加入 pool
+**第六步：实例化并加入 pool**
 
 ```systemverilog
 function void my_test::connect_phase(uvm_phase phase);
@@ -264,7 +264,7 @@ endfunction
 必须在 driver 首次执行扩展点之前完成 add。
 通常可在 build、connect 或 start_of_simulation 阶段安装。
 
-#### callback 删除
+**callback 删除**
 需要取消时：
 
 ```systemverilog
@@ -274,7 +274,7 @@ driver_callback_pool::delete(env.i_agt.drv, cb);
 
 动态添加/删除要考虑并发执行时机，不要在遍历 pool 的同时随意修改。
 
-#### 多 callback 顺序
+**多 callback 顺序**
 若同一 driver 挂多个 callback，执行顺序会影响结果。
 例如：
 
@@ -288,7 +288,7 @@ callback B: corrupt payload
 
 ---
 
-### 9.1.5 子类继承父类的 callback 机制
+### 9.1.5 子类继承父类的 callback 机制（🟢 低）
 从已有 driver 派生新 driver 时，希望继续使用针对父类注册的 callback。
 
 ```systemverilog
@@ -322,7 +322,7 @@ endclass
 
 ---
 
-### 9.1.6 使用 callback 实现所有测试用例
+### 9.1.6 使用 callback 实现所有测试用例（🟡 中）
 理论上可以把 transaction 生成、objection 和驱动流程都放入 callback。
 
 ```systemverilog
@@ -352,7 +352,7 @@ callback : 在稳定流程的特定点插入小变化
 
 ---
 
-### 9.1.7 callback、sequence 和 factory 的选择
+### 9.1.7 callback、sequence 和 factory 的选择（🟡 中）
 
 | 变化需求 | 推荐机制 |
 |----------|----------|
@@ -377,9 +377,9 @@ sequence 的优势：
 
 ---
 
-## 9.2 功能的模块化：小而美
+## 9.2 功能的模块化：小而美（🟢 低）
 
-### 9.2.1 Linux 的设计哲学：小而美
+### 9.2.1 Linux 的设计哲学：小而美（🟢 低）
 “小而美”的核心是每个模块只做好一件事，并通过明确接口组合。
 验证代码中的表现：
 - 一个 sequence 对应一个清晰场景。
@@ -398,7 +398,7 @@ sequence 的优势：
 
 ---
 
-### 9.2.2 小而美与 factory 机制的重载
+### 9.2.2 小而美与 factory 机制的重载（🟢 低）
 不要在一个类中用大量 if/else 处理所有项目、协议和异常。
 不推荐：
 
@@ -432,7 +432,7 @@ factory 与小类结合，能让测试只声明差异。
 
 ---
 
-### 9.2.3 放弃建造强大 sequence 的想法
+### 9.2.3 放弃建造强大 sequence 的想法（🟢 低）
 万能 sequence 常包含大量参数：
 - 正常包还是错误包。
 - 随机生成还是文件读取。
@@ -479,9 +479,9 @@ endtask
 
 ---
 
-## 9.3 参数化的类
+## 9.3 参数化的类（🟡 中）
 
-### 9.3.1 参数化类的必要性
+### 9.3.1 参数化类的必要性（🟡 中）
 参数化类把“算法结构”与“所处理的类型或位宽”分离。
 UVM sequence：
 
@@ -516,9 +516,9 @@ class bus_sequence extends uvm_sequence #(
 
 ---
 
-### 9.3.2 UVM 对参数化类的支持
+### 9.3.2 UVM 对参数化类的支持（🟡 中）
 
-#### 参数化 transaction
+**参数化 transaction**
 
 ```systemverilog
 class bus_transaction #(
@@ -539,7 +539,7 @@ endclass
 参数化 object 使用 `uvm_object_param_utils`。
 参数化 component 使用 `uvm_component_param_utils`。
 
-#### 参数化 interface
+**参数化 interface**
 
 ```systemverilog
 interface bus_if #(
@@ -579,7 +579,7 @@ if (!uvm_config_db #(bus_vif_t)::get(this, "", "vif", vif))
 
 `bus_if #(16, 32)` 与 `bus_if #(32, 32)` 是不同类型。
 
-#### 参数化 sequencer
+**参数化 sequencer**
 
 ```systemverilog
 class bus_sequencer #(
@@ -594,7 +594,7 @@ class bus_sequencer #(
 endclass
 ```
 
-#### factory 与默认参数
+**factory 与默认参数**
 教材强调，使用参数化类的 factory `type_id` 时应显式写出参数。
 
 ```systemverilog
@@ -618,9 +618,9 @@ factory override 也必须针对相同参数化基类的兼容派生类型。
 
 ---
 
-## 9.4 模块级到芯片级的代码重用
+## 9.4 模块级到芯片级的代码重用（🟢 低）
 
-### 9.4.1 基于 env 的重用
+### 9.4.1 基于 env 的重用（🟢 低）
 假设芯片由 A、B、C 三个模块串联。
 模块级验证时，每个模块有自己的输入 active agent 和输出 monitor。
 
@@ -638,7 +638,7 @@ module env
 2. 取消冗余 input agent，由上游 env 的 analysis port 向下游 model 供数。
 教材更推荐第二种，因为能减少重复 monitor 并加强模块间接口检查。
 
-#### 可复用模块 env
+**可复用模块 env**
 
 ```systemverilog
 class block_env extends uvm_env;
@@ -699,7 +699,7 @@ endfunction
 - 模块 env 仍能独立用于 block-level。
 - 芯片层只负责组合，不复制模块内部逻辑。
 
-#### `in_chip` 的设计建议
+**`in_chip` 的设计建议**
 教材直接使用 bit 字段。
 工程中可使用配置对象，让模式在创建前确定：
 
@@ -712,7 +712,7 @@ cfg.in_chip = 1;
 
 ---
 
-### 9.4.2 寄存器模型的重用
+### 9.4.2 寄存器模型的重用（🟢 低）
 模块级和芯片级的配置总线拓扑通常不同。
 模块级：
 
@@ -792,7 +792,7 @@ env_c.p_rm = chip_rm.c_rm;
 - 统一 bus sequencer/adapter 绑定。
 模块寄存器定义本身无需复制。
 
-#### 层次所有权原则
+**层次所有权原则**
 
 | 资源 | 推荐所有者 |
 |------|------------|
@@ -805,7 +805,7 @@ env_c.p_rm = chip_rm.c_rm;
 
 ---
 
-### 9.4.3 virtual sequence 与 virtual sequencer
+### 9.4.3 virtual sequence 与 virtual sequencer（🟡 中）
 模块级 virtual sequencer 往往包含模块测试专用资源。
 例如内部模块 B 的模块级 virtual sequencer 可能同时保存：
 - B 输入 sequencer。
@@ -849,7 +849,7 @@ endclass
 
 注意应分别传入 `a_seq`、`d_seq`、`f_seq`，不能因复制代码把三个分支都写成同一句柄。
 
-#### 哪些 sequence 容易跨层重用
+**哪些 sequence 容易跨层重用**
 可直接复用：
 - 边界接口上的普通 transaction sequence。
 - 不依赖模块 virtual sequencer 类型的原子 sequence。
@@ -859,7 +859,7 @@ endclass
 - 直接引用模块 test 层句柄的 sequence。
 - 假设模块级 driver 一定存在的 sequence。
 
-#### 可复用寄存器配置 sequence
+**可复用寄存器配置 sequence**
 不推荐强绑定 p_sequencer：
 
 ```systemverilog
@@ -903,15 +903,15 @@ cfg_seq.start(null);
 
 配置 sequence 依赖的是 RAL 对象，不依赖数据 sequencer，因此可 `start(null)`。
 
-#### 通过名字查找 block
+**通过名字查找 block**
 复杂芯片可使用 `find_block()`、`find_blocks()`、`get_blocks()` 或 `get_block_by_name()` 查找子模型。
 但显式传递句柄通常更清晰、更容易静态检查。
 
 ---
 
-## 9.5 可重用验证平台设计清单
+## 9.5 可重用验证平台设计清单（🟡 中）
 
-### 9.5.1 VIP 开发者应提供
+### 9.5.1 VIP 开发者应提供（🟡 中）
 - 稳定 transaction 定义。
 - 可配置 active/passive agent。
 - 明确的 analysis port/export。
@@ -921,7 +921,7 @@ cfg_seq.start(null);
 - 不依赖具体 test 层次的 sequence。
 - 错误处理与调试日志。
 
-### 9.5.2 block env 不应硬编码
+### 9.5.2 block env 不应硬编码（🟡 中）
 - `uvm_test_top` 绝对路径。
 - 芯片级总线 agent。
 - 芯片 root register model。
@@ -929,7 +929,7 @@ cfg_seq.start(null);
 - 只在某个 test 存在的 virtual sequencer。
 - 外部模块内部句柄。
 
-### 9.5.3 从 block 到 chip 的迁移步骤
+### 9.5.3 从 block 到 chip 的迁移步骤（🟡 中）
 1. 确认每个 agent 支持 active/passive。
 2. 为 env 暴露输入 export 和输出 analysis port。
 3. 删除芯片层重复 monitor。
@@ -941,7 +941,7 @@ cfg_seq.start(null);
 9. 复用边界普通 sequence。
 10. 重写系统级 virtual sequence 完成多接口协调。
 
-### 9.5.4 常见复用失败原因
+### 9.5.4 常见复用失败原因（🟡 中）
 
 | 现象 | 根因 |
 |------|------|

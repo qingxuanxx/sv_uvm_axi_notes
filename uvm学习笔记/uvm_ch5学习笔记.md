@@ -31,8 +31,8 @@
 
 ---
 
-## 5.1 phase 机制
-### 5.1.1 task phase 与 function phase
+## 5.1 phase 机制（🔴 高）
+### 5.1.1 task phase 与 function phase（🔴 高）
 phase 按是否允许消耗仿真时间分成两类。
 
 | 类型 | 实现 | 是否耗时 | 典型 phase |
@@ -40,7 +40,7 @@ phase 按是否允许消耗仿真时间分成两类。
 | function phase | function | 否 | build、connect、extract、report |
 | task phase | task | 是 | run、reset、main、shutdown |
 
-#### function phase
+**function phase**
 function phase 在仿真时间上不允许使用延时或事件等待。
 
 ```systemverilog
@@ -67,7 +67,7 @@ endfunction
 | report_phase | 输出 PASS/FAIL 与汇总 |
 | final_phase | 关闭文件、最终清理 |
 
-#### task phase
+**task phase**
 ```systemverilog
 task my_driver::main_phase(uvm_phase phase);
     forever begin
@@ -86,7 +86,7 @@ task phase 可包含：
 - blocking TLM get/put。
 - fork/join 并发进程。
 
-#### 总体 phase 顺序
+**总体 phase 顺序**
 ```mermaid
 flowchart TD
     BUILD["build<br/>自顶向下建树"] --> CONN["connect<br/>自底向上连端口"]
@@ -110,7 +110,7 @@ flowchart TD
 
 ---
 
-### 5.1.2 动态运行 phase（12 个 run-time phase）
+### 5.1.2 动态运行 phase（12 个 run-time phase）（🔴 高）
 
 12 个 run-time phase 分 4 组，每组是"pre_* → 核心 → post_*"的包裹结构：
 
@@ -143,7 +143,7 @@ endtask
 1. **task phase 靠 objection 续命**：没人 raise_objection，phase 会被瞬间跳过（详见 5.2）。
 2. **全树同步**：所有组件的同一个 phase 都执行完，才进入下一个 phase，各组件因此能在同一语义阶段对齐动作。
 
-#### 为什么要拆成 4 组
+**为什么要拆成 4 组**
 
 - 不同场景挂不同 sequence（如 ch2 的 `i_agt.sqr.main_phase`）。
 - 支持运行中重新复位（phase jump）。
@@ -151,7 +151,7 @@ endtask
 
 ---
 
-### 5.1.3 phase 的执行顺序
+### 5.1.3 phase 的执行顺序（🔴 高）
 “自上而下”有两种含义。
 
 | 维度 | 含义 |
@@ -159,7 +159,7 @@ endtask
 | 时间上的自上而下 | 不同 phase 按 phase 图顺序推进 |
 | 空间上的自上而下 | 同一 phase 按 UVM 树从 parent 到 child 执行 |
 
-#### build_phase：top-down
+**build_phase：top-down**
 ```text
 test.build → env.build → agent.build → driver.build
 ```
@@ -182,7 +182,7 @@ component 必须在 build 阶段完成创建。
 
 object 不进入 component 树，可在任意合理阶段创建。
 
-#### 其他 function phase：bottom-up
+**其他 function phase：bottom-up**
 教材指出，除 build_phase 外，大多数 function phase 按树从叶到根执行。
 
 ```text
@@ -205,7 +205,7 @@ function void env::connect_phase(uvm_phase phase);
 endfunction
 ```
 
-#### task phase：bottom-up 启动、并发运行
+**task phase：bottom-up 启动、并发运行**
 task phase 不是等 child 完成后才执行 parent，而是按遍历顺序启动多个并行进程。
 
 ```mermaid
@@ -229,7 +229,7 @@ wait (phase.phase_done == 0);      // [2] 统一等待：objection 归零且进�
 // 到达 [2] 后才进入 post_main_phase
 ```
 
-#### 兄弟 component 的顺序
+**兄弟 component 的顺序**
 教材在 UVM 1.1d 源码中观察到同层 component 按实例名字典序遍历，而非创建顺序。
 
 ```systemverilog
@@ -250,7 +250,7 @@ aaaa -> dddd -> jjjj -> zzzz
 
 **真相**：UVM 1.1d 中 m_children 是关联数组（uvm_component m_children[string]，key 为实例名），遍历按 key 字典序，与创建顺序无关。这是实现细节，标准不保证，工程上不应依赖。
 
-#### run-time phase 的全局同步
+**run-time phase 的全局同步**
 假设 A.main 耗时 100，B.main 耗时 200：
 
 ```mermaid
@@ -274,7 +274,7 @@ flowchart TD
 
 "快的等慢的"不是 A 主动等待，而是 phase 完成条件是所有参与者都完成（rendezvous 会合点）；post_main 是独立 phase，计数从 0 重新开始，故 A/B 的 post_main 同时重新 raise 启动。
 
-#### run_phase 与 run-time phase 同步
+**run_phase 与 run-time phase 同步**
 <code>run_phase</code> 与 12 个动态 phase 并行——两套独立运行的体系：
 
 ```text
@@ -289,7 +289,7 @@ flowchart TD
 - 体系 A：run_phase 完成或被终止（objection 归零，或进程被 kill）。
 - 相关 objection 全部撤销。
 
-#### phase 时间线示例
+**phase 时间线示例**
 ```systemverilog
 task A::main_phase(uvm_phase phase);
     phase.raise_objection(this);
@@ -345,7 +345,7 @@ B 的活：  [============]                ← 这关 B 只要 200，干到 400
 
 ---
 
-### 5.1.4 UVM 树的遍历
+### 5.1.4 UVM 树的遍历（🟡 中）
 UVM 树遍历常见两种方式：
 
 | 遍历 | 含义 |
@@ -385,7 +385,7 @@ if (!scb.already_ready)
 ### 5.1.5 super.phase 的内容（⚠️ 未理解，待复习，先跳过）
 是否调用 <code>super.xxxx_phase</code> 取决于父类是否实现了必要行为。
 
-#### build_phase 通常必须调用
+**build_phase 通常必须调用**
 ```systemverilog
 function void my_driver::build_phase(uvm_phase phase);
     super.build_phase(phase);     // 保留父类配置应用等行为
@@ -395,12 +395,12 @@ endfunction
 
 教材特别强调，<code>uvm_component::build_phase</code> 会处理 field automation 的配置应用。
 
-#### UVM 基类的其他 phase 多为空
+**UVM 基类的其他 phase 多为空**
 uvm_component 的许多默认 phase 只调用旧式空方法或直接 return，因此直接继承 UVM 类时，某些 super 调用在功能上可省略。
 
 但工程上保持调用通常更稳妥。
 
-#### 用户父类不为空时必须保留
+**用户父类不为空时必须保留**
 ```systemverilog
 class my_test extends base_test;
     function void connect_phase(uvm_phase phase);
@@ -414,7 +414,7 @@ endclass
 
 ---
 
-### 5.1.6 build 阶段出现 UVM_ERROR 停止仿真
+### 5.1.6 build 阶段出现 UVM_ERROR 停止仿真（🟡 中）
 在 end_of_elaboration_phase 及其之前出现 UVM_ERROR，UVM 会把 build/elaboration 错误汇总，并以内部 UVM_FATAL 停止运行。
 
 ```systemverilog
@@ -429,7 +429,7 @@ endfunction
 
 即使这里是 UVM_ERROR，elaboration 结束时也可能因 BUILDERR 退出。
 
-#### UVM_ERROR 与 UVM_FATAL 的取舍
+**UVM_ERROR 与 UVM_FATAL 的取舍**
 
 | 选择 | 特点 |
 |------|------|
@@ -442,7 +442,7 @@ endfunction
 
 ---
 
-### 5.1.7 phase 的跳转
+### 5.1.7 phase 的跳转（🔴 高）
 <code>phase.jump(目标phase)</code> 可让当前 schedule 跳到另一 phase。
 
 典型场景：运行中检测到 DUT 复位，main_phase 跳回 reset_phase。
@@ -452,7 +452,7 @@ endfunction
 跳转后：  main → jump → reset → ... → main（重新跑）
 ```
 
-#### driver reset_phase
+**driver reset_phase**
 
 ```systemverilog
 task my_driver::reset_phase(uvm_phase phase);
@@ -468,7 +468,7 @@ task my_driver::reset_phase(uvm_phase phase);
 endtask
 ```
 
-#### main_phase 监测异步复位
+**main_phase 监测异步复位**
 ```systemverilog
 task my_driver::main_phase(uvm_phase phase);
     fork
@@ -486,7 +486,7 @@ task my_driver::main_phase(uvm_phase phase);
 endtask
 ```
 
-#### jump 的影响
+**jump 的影响**
 phase jump 影响当前 domain，不只是调用 jump 的单个 component。
 
 跳转时要处理：
@@ -498,7 +498,7 @@ phase jump 影响当前 domain，不只是调用 jump 的单个 component。
 - FIFO 和 reference model 状态需要复位。
 - DUT 跳转后可能输出尾部异常数据。
 
-#### 可跳转范围
+**可跳转范围**
 教材示例指出：
 
 - 不能从运行时跳回 build/connect 等已完成的 function phase。
@@ -506,7 +506,7 @@ phase jump 影响当前 domain，不只是调用 jump 的单个 component。
 - run-time schedule 内可向前或向后跳到合法前驱/后继 phase。
 - 向后跳到后续收尾 phase 也需确认资源清理。
 
-#### 防止无限跳转
+**防止无限跳转**
 ```systemverilog
 if (!has_jumped) begin
     has_jumped = 1;
@@ -518,7 +518,7 @@ end
 
 ---
 
-### 5.1.8 phase 机制的必要性
+### 5.1.8 phase 机制的必要性（🟢 低）
 phase 把“创建、连接、运行、检查、报告”分配到确定阶段。
 
 没有 phase 时，用户必须手工保证：
@@ -545,7 +545,7 @@ UVM 的设计：
 
 ---
 
-### 5.1.9 phase 的调试
+### 5.1.9 phase 的调试（🟡 中）
 命令行打开 phase trace：
 ```text
 <sim_command> +UVM_PHASE_TRACE
@@ -571,7 +571,7 @@ trace 输出很大，通常只在调试时开启。
 
 ---
 
-### 5.1.10 超时退出
+### 5.1.10 超时退出（🟡 中）
 测试挂起时，仿真时间可能持续前进但没有 transaction 或 error。
 
 设置全局 timeout：
@@ -605,8 +605,8 @@ timeout 应根据最长合法测试设置，过短会误杀慢场景，过长会
 
 ---
 
-## 5.2 objection 机制
-### 5.2.1 objection 与 task phase
+## 5.2 objection 机制（🔴 高）
+### 5.2.1 objection 与 task phase（🔴 高）
 objection 是 task phase 的存活计数。
 
 ```systemverilog
@@ -621,14 +621,14 @@ task my_sequence::body();
 endtask
 ```
 
-#### 基本规则
+**基本规则**
 
 - **drop 前必须 raise**，raise 让计数 +1，drop 让计数 -1，**顺序错（先 drop）就是非法操作**，UVM 会报错。
 - **所有 objection 归零后，当前 phase 才能结束**——即 5.1.3 的 phase_done 计数：同一 domain 所有组件的 raise/drop 累加在**同一个计数器**上，计数归零且进程结束才放行；"快的等慢的"就是计数还没归零。
 - **若 phase 从未 raise，UVM 可在 0 时间立即跳过它**——即 5.1.9 trace 的 **SKIP**：计数恒为 0，phase 瞬间完成，耗时代码没机会跑。
 - **phase 结束时仍运行的无限循环会被框架终止**——如果 raise 了、代码里有个 `forever` 循环，drop 永远执行不到，计数永远不归零 → phase 永远不结束 → 仿真挂死；UVM 会在 phase 结束条件满足时强制杀掉仍在跑的 phase 进程。
 
-#### 只有 driver raise
+**只有 driver raise**
 
 **核心**：objection 是**挂在 phase 上**的，不是挂在组件上的。同一个 phase 里，**任何一个**组件的 raise 都能让整个 phase 活着。
 
@@ -650,7 +650,7 @@ monitor 不必自己 raise；同一 phase 中任一 component 的 objection 都�
 
 > 这就是"同计数器"的威力：**一个组件的 raise 保护了所有组件**。monitor 只管采集，不需要关心 phase 死活。
 
-#### 完全没有 objection
+**完全没有 objection**
 
 **核心**：**代码里有延时 ≠ phase 会等待**。phase 的等待条件是"计数归零 + 进程结束"，不是"代码写完"。
 
@@ -664,14 +664,14 @@ endtask
 
 > **关键**：耗时代码存在并不等于 phase 会等待，必须至少有一个有效 objection。
 
-#### run_phase 的特殊关系
+**run_phase 的特殊关系**
 run_phase 与动态 phase 并行——两条线各有独立的 objection 计数器，互不影响：
 
 - **main_phase 有 objection 时，run_phase 即使不 raise 也可运行**：main 的 raise 只保护动态 phase 这条线；run_phase 在另一条线上，只要它自己的进程（如 forever 循环）还没结束，就会一直运行，不需要任何人替它 raise。
 - **只有 run_phase raise，而 main_phase 没有 objection，main_phase 可能被快速跳过**：run 的 raise 只保护 run_phase 自己；main 这条线没人 raise，计数器恒为 0，main 会在 0 时间被跳过（SKIP），里面写的耗时代码不会执行——但测试还能靠 run_phase 继续跑。
 - **进入 extract 前，run_phase 与动态 phase 的 objection 都必须结束**：extract 是 run 阶段的总出口，两条线都必须收工（动态 phase 链全部走完 + run_phase 结束）才能进入，任何一条线还挂着 objection 都进不去。
 
-#### run_phase 与 main_phase 对照
+**run_phase 与 main_phase 对照**
 
 | objection 位于 | main_phase | run_phase |
 |----------------|------------|-----------|
@@ -684,7 +684,7 @@ run_phase 与动态 phase 并行——两条线各有独立的 objection 计数�
 
 ---
 
-### 5.2.2 参数 phase 的必要性
+### 5.2.2 参数 phase 的必要性（🟡 中）
 所有 phase 回调都接收 <code>uvm_phase phase</code>：
 ```systemverilog
 task main_phase(uvm_phase phase);
@@ -726,10 +726,10 @@ function phase 语法上也能 raise/drop，但它不能耗时，通常没有必
 
 ---
 
-### 5.2.3 控制 objection 的最佳选择
+### 5.2.3 控制 objection 的最佳选择（🔴 高）
 driver、monitor、model 通常有 forever 循环，不适合自己决定测试结束。
 
-#### 不推荐在 forever 外控制
+**不推荐在 forever 外控制**
 ```systemverilog
 task driver::main_phase(uvm_phase phase);
     phase.raise_objection(this);
@@ -745,7 +745,7 @@ endtask
 
 `forever` 循环根本不会退出，`drop` 这行代码**永远到不了** → 计数永远 ≥1 → phase 卡死。所以 **driver 这类"天生无限循环"的组件，不适合自己决定测试什么时候结束**。
 
-#### 在 get_next_item 后 raise 也不可靠
+**在 get_next_item 后 raise 也不可靠**
 
 如果**全平台没人 raise**，phase 在 driver 拿到第一个 item 之前就 SKIP 结束了——你在 `get_next_item` 之后才 raise，**根本没机会执行到**。
 
@@ -760,7 +760,7 @@ task driver::main_phase(uvm_phase phase);
 endtask
 ```
 
-#### 策略一：scoreboard 控制
+**策略一：scoreboard 控制**
 ```systemverilog
 task my_scoreboard::main_phase(uvm_phase phase);
     phase.raise_objection(this);
@@ -787,7 +787,7 @@ endtask
 
 **思路**：scoreboard 知道**预期包数**（packet_num）——它清楚"验证什么时候算完成"。收够 packet_num 个实际包就 drop。
 
-#### 策略二：sequence 控制
+**策略二：sequence 控制**
 ```systemverilog
 task case_sequence::body();
     if (starting_phase != null)
@@ -807,7 +807,7 @@ sequence 是**唯一清楚"激励从哪开始、到哪结束"的组件**——�
 
 ---
 
-### 5.2.4 set_drain_time 的使用
+### 5.2.4 set_drain_time 的使用（🟡 中）
 DUT 有流水延迟，最后一个输入 transaction 发送完成后，输出可能尚未出现。
 
 ```text
@@ -823,7 +823,7 @@ sequence 发完最后一包 → drop objection → 计数归零 → phase 结束
                           monitor/scoreboard 还没收完输出
 ```
 
-#### 不推荐每个 sequence 手写固定延时
+**不推荐每个 sequence 手写固定延时**
 ```systemverilog
 repeat (10)
     `uvm_do(req)
@@ -834,7 +834,7 @@ phase.drop_objection(this);
 
 问题：每个 sequence 都要猜"等多久"，包长一变就要改。
 
-#### 设置 drain time
+**设置 drain time**
 
 ```systemverilog
 task base_test::main_phase(uvm_phase phase);
@@ -857,12 +857,12 @@ endtask
 
 **关键细节**：drain time 期间 phase **还没结束**，monitor、scoreboard 等进程**继续运行**——所以最后几包输出能被正常采集和比较。
 
-#### 每个 phase 独立设置
+**每个 phase 独立设置**
 main_phase 的 drain time 不会自动应用到 configure_phase。
 
 未设置时默认 drain time 为 0。
 
-#### drain time 的局限
+**drain time 的局限**
 
 | 局限 | 说明 |
 |------|------|
@@ -874,7 +874,7 @@ main_phase 的 drain time 不会自动应用到 configure_phase。
 
 ---
 
-### 5.2.5 objection 的调试
+### 5.2.5 objection 的调试（🟡 中）
 命令行：
 ```text
 <sim_command> +UVM_OBJECTION_TRACE
@@ -888,7 +888,7 @@ trace 会显示：
 - objection 描述字符串。
 - 发生时间。
 
-#### 一次 raise 多个 objection
+**一次 raise 多个 objection**
 ```systemverilog
 phase.raise_objection(
     this,
@@ -907,7 +907,7 @@ phase.drop_objection(
 - **必须对称**：raise 2 就必须 drop 2，数量不一致 = 永久挂起；
 - 工程建议：**默认一次 1 个**，只有确有多独立工作单元（比如同时跑两个并发任务）才用多计数。
 
-#### objection 沿树传播
+**objection 沿树传播**
 ```text
 sequence raise → sequencer total +1 
                → agent total +1 
@@ -918,7 +918,7 @@ sequence raise → sequencer total +1
 
 **每个父节点的 total = 自己的 + 所有子节点传来的**。phase 最终看的是**全局 total 是否归零**。
 
-#### 常见 objection 故障
+**常见 objection 故障**
 
 | 现象 | 可能原因 |
 |------|----------|
@@ -928,7 +928,7 @@ sequence raise → sequencer total +1
 | jump 出现清理 warning | 跳转前仍有 objection |
 | sequence 卡住 | driver 未 item_done，不一定是 objection |
 
-#### objection 设计检查清单
+**objection 设计检查清单**
 
 1. 谁真正知道测试何时开始、何时完成？
 2. raise 是否发生在第一个耗时语句之前？
@@ -943,8 +943,8 @@ sequence raise → sequencer total +1
 
 ---
 
-## 5.3 domain 的应用
-### 5.3.1 domain 简介
+## 5.3 domain 的应用（🟢 低）
+### 5.3.1 domain 简介（🟢 低）
 默认情况下，所有 component 位于 common domain。
 
 同一 domain 中，component 的 12 个 run-time phase 需要同步。
@@ -971,8 +971,8 @@ domain 主要隔离 12 个 run-time phase。
 
 ---
 
-### 5.3.2 多 domain 的例子
-#### 创建并设置 domain
+### 5.3.2 多 domain 的例子（🟢 低）
+**创建并设置 domain**
 ```systemverilog
 class block_b extends uvm_component;
     uvm_domain local_domain;
@@ -1002,7 +1002,7 @@ endclass
 
 <code>set_domain(domain, hier)</code> 中 <code>hier=1</code> 表示递归应用到后代。
 
-#### 不同 domain 独立推进
+**不同 domain 独立推进**
 A 在 common domain：
 ```systemverilog
 task A::reset_phase(uvm_phase phase);
@@ -1046,7 +1046,7 @@ flowchart TD
 
 ---
 
-### 5.3.3 多 domain 中 phase 的跳转
+### 5.3.3 多 domain 中 phase 的跳转（🟢 低）
 phase jump 只影响调用者所在 domain。
 
 ```systemverilog
@@ -1071,14 +1071,14 @@ endtask
 - B 可第二次进入 reset 和 main。
 - A 的 reset/main 只执行一次。
 
-#### domain jump 的用途
+**domain jump 的用途**
 
 - 单个子系统局部复位。
 - 独立电源域重启。
 - 某协议 agent 的局部恢复。
 - 多时钟域不同步配置。
 
-#### 风险
+**风险**
 
 - 跨 domain scoreboard 可能同时接收不同运行阶段的数据。
 - 共享 model 要知道每笔 transaction 属于哪个 domain/epoch。

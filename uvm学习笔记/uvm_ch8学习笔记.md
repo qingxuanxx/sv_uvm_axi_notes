@@ -43,9 +43,9 @@ factory 不是 C++ 意义上的函数重载，也不是约束重载。
 
 ---
 
-## 8.1 SystemVerilog 对重载的支持
+## 8.1 SystemVerilog 对重载的支持（🟡 中）
 
-### 8.1.1 任务与函数的重载
+### 8.1.1 任务与函数的重载（🟡 中）
 教材所说的“重载”在这里更接近面向对象中的 override，即子类重写父类虚方法。
 
 ```systemverilog
@@ -97,7 +97,7 @@ hungry()  -> parrot::hungry()
 hungry2() -> bird::hungry2()
 ```
 
-#### 虚方法的价值
+**虚方法的价值**
 - 调用者只依赖基类接口。
 - 子类可以修改行为。
 - UVM 可统一用 `uvm_component` 句柄遍历组件树。
@@ -112,7 +112,7 @@ c_ptr.build_phase(phase);
 
 因为 phase 方法是 virtual，最终调用对象实际类型的实现。
 
-#### 重写规则
+**重写规则**
 - 父类方法必须声明为 `virtual`。
 - 子类方法签名应与父类一致。
 - 返回类型、参数类型和参数方向应匹配。
@@ -128,7 +128,7 @@ endfunction
 
 ---
 
-### 8.1.2 约束的重载
+### 8.1.2 约束的重载（🟡 中）
 SystemVerilog 允许子类用同名 constraint 替换父类 constraint。
 基础 transaction：
 
@@ -172,7 +172,7 @@ endclass
 
 如果父类 `default_cons` 约束 `crc_err == 0`，上述约束集合无解。
 
-#### 为什么正常包不宜只用极低错误概率
+**为什么正常包不宜只用极低错误概率**
 
 ```systemverilog
 constraint almost_normal {
@@ -185,7 +185,7 @@ constraint almost_normal {
 正常功能测试若要求绝不注入错误，应使用硬约束 `crc_err == 0`。
 概率约束适合随机压力测试，不适合定义绝对合法性。
 
-#### `constraint_mode()` 方案
+**`constraint_mode()` 方案**
 
 ```systemverilog
 tr.default_cons.constraint_mode(0);       // 关闭默认正常约束
@@ -206,9 +206,9 @@ assert(tr.randomize() with {
 
 ---
 
-## 8.2 使用 factory 机制进行重载
+## 8.2 使用 factory 机制进行重载（🔴 高）
 
-### 8.2.1 factory 机制式的重载
+### 8.2.1 factory 机制式的重载（🔴 高）
 设置 type override：
 
 ```systemverilog
@@ -235,7 +235,7 @@ actual object type : parrot
 
 调用 virtual 方法时表现为 `parrot` 行为。
 
-#### factory override 生效的四个前提
+**factory override 生效的四个前提**
 1. 原类型和替代类型都注册到 factory。
 2. 原对象使用 factory 的 `create()` 创建，而不是直接 `new()`。
 3. 替代类型必须派生自原类型。
@@ -279,7 +279,7 @@ bird       bear
 
 替代结果必须能够赋给原句柄，否则 factory 创建后 cast 会失败。
 
-#### 为什么 object 和 component 不能互换
+**为什么 object 和 component 不能互换**
 object 构造形式：
 
 ```systemverilog
@@ -296,7 +296,7 @@ function new(string name, uvm_component parent);
 
 ---
 
-### 8.2.2 重载的方式及种类
+### 8.2.2 重载的方式及种类（🔴 高）
 factory override 有两个维度：
 
 ```text
@@ -304,7 +304,7 @@ factory override 有两个维度：
 标识：by_type / by_name
 ```
 
-#### type override by type
+**type override by type**
 
 ```systemverilog
 set_type_override_by_type(
@@ -319,7 +319,7 @@ set_type_override_by_type(
 - 所有同类 monitor 使用增强版本。
 - 某 test 全局更换 sequence 策略。
 
-#### instance override by type
+**instance override by type**
 
 ```systemverilog
 set_inst_override_by_type(
@@ -337,13 +337,13 @@ set_inst_override_by_type(
 实例路径通常相对于调用 override 的 component。
 若在 test 中调用，`"env.o_agt.mon"` 会与 test 完整路径组合。
 
-#### type override by name
+**type override by name**
 
 ```systemverilog
 set_type_override("my_monitor", "new_monitor");
 ```
 
-#### instance override by name
+**instance override by name**
 
 ```systemverilog
 set_inst_override(
@@ -362,7 +362,7 @@ set_inst_override(
 工程代码优先使用 by type。
 命令行和动态工具场景再使用 by name。
 
-#### 命令行重载
+**命令行重载**
 类型重载概念格式：
 
 ```text
@@ -377,15 +377,15 @@ set_inst_override(
 
 命令行 override 便于不改源码快速试验，但回归脚本必须记录参数。
 
-#### type override 与 instance override 优先级
+**type override 与 instance override 优先级**
 若同一次创建同时命中 instance 和 type override，instance override 更具体，通常优先。
 调试时不能只看 type 表，还要核对实例路径。
 
 ---
 
-### 8.2.3 复杂的重载
+### 8.2.3 复杂的重载（🟡 中）
 
-#### 连续重载
+**连续重载**
 
 ```systemverilog
 set_type_override_by_type(
@@ -407,7 +407,7 @@ bird -> parrot -> big_parrot
 最终创建 `big_parrot`。
 连续重载的每一步都应保持最终类型与最初请求类型兼容。
 
-#### 替换已有 override
+**替换已有 override**
 
 ```systemverilog
 set_type_override_by_type(
@@ -429,7 +429,7 @@ bird -> sparrow
 
 若 `replace=0`，已有记录通常保留，后设置不会取代它。
 
-#### 复杂 override 的风险
+**复杂 override 的风险**
 - override 链过长，难以判断最终类型。
 - 基类 test 与派生 test 重复设置同一类型。
 - instance override 路径写错后悄悄退回 type override。
@@ -444,9 +444,9 @@ bird -> sparrow
 
 ---
 
-### 8.2.4 factory 机制的调试
+### 8.2.4 factory 机制的调试（🟡 中）
 
-#### 查看某次创建的解析结果
+**查看某次创建的解析结果**
 
 ```systemverilog
 factory.print_override_info(
@@ -477,7 +477,7 @@ factory.debug_create_by_name(
 
 这些接口用于显示解析过程，不一定真正保留创建对象。
 
-#### 打印 factory 配置
+**打印 factory 配置**
 
 ```systemverilog
 factory.print();
@@ -497,7 +497,7 @@ uvm_factory::get().print();
 - Instance Path。
 - 是否存在重复或未使用记录。
 
-#### 打印 UVM 拓扑
+**打印 UVM 拓扑**
 
 ```systemverilog
 function void base_test::end_of_elaboration_phase(uvm_phase phase);
@@ -509,7 +509,7 @@ endfunction
 factory 表说明“应该创建什么”，topology 说明“实际建出了什么 component”。
 object 不在 component topology 中，需要通过类型名或对象打印确认。
 
-#### override 不生效的排查顺序
+**override 不生效的排查顺序**
 1. 确认 override 在目标对象 create 之前设置。
 2. 确认原类和替代类均已注册。
 3. 确认目标使用 `type_id::create()` 而不是 `new()`。
@@ -523,9 +523,9 @@ object 不在 component topology 中，需要通过类型名或对象打印确�
 
 ---
 
-## 8.3 常用的重载
+## 8.3 常用的重载（🟡 中）
 
-### 8.3.1 重载 transaction
+### 8.3.1 重载 transaction（🟡 中）
 基础 sequence 保持不变：
 
 ```systemverilog
@@ -577,7 +577,7 @@ endfunction
 
 ---
 
-### 8.3.2 重载 sequence
+### 8.3.2 重载 sequence（🟡 中）
 父 sequence 嵌套原子 sequence：
 
 ```systemverilog
@@ -623,7 +623,7 @@ set_type_override_by_type(
 
 ---
 
-### 8.3.3 重载 component
+### 8.3.3 重载 component（🟡 中）
 可以替换 driver、monitor、scoreboard 或 reference model。
 CRC 注错 driver：
 
@@ -662,7 +662,7 @@ component override 适合修改：
 - reference model 的异常算法。
 如果只改变 item 内容，transaction 或 sequence override 通常更合适。
 
-#### reference model 拆分
+**reference model 拆分**
 一个覆盖所有异常的 model 可能充满分支。
 可以保留正常 model，再为少量特殊 case 派生异常 model。
 
@@ -677,7 +677,7 @@ set_type_override_by_type(
 
 ---
 
-### 8.3.4 重载 driver 以实现所有测试用例
+### 8.3.4 重载 driver 以实现所有测试用例（🟡 中）
 理论上可以把激励生成、数量控制、objection 和驱动都放回 driver，再通过 factory 替换 driver 实现不同 case。
 教材明确不推荐这样做。
 原因：
@@ -699,9 +699,9 @@ factory 是工具，不是让所有变化都集中到 component override 的理�
 
 ---
 
-## 8.4 factory 机制的实现
+## 8.4 factory 机制的实现（🟡 中）
 
-### 8.4.1 创建一个类实例的方法
+### 8.4.1 创建一个类实例的方法（🟡 中）
 普通创建：
 
 ```systemverilog
@@ -726,7 +726,7 @@ factory 通过注册表和代理对象补充这一能力。
 
 ---
 
-### 8.4.2 根据字符串创建一个类
+### 8.4.2 根据字符串创建一个类（🟡 中）
 简化的 registry 思路：
 
 ```systemverilog
@@ -771,9 +771,9 @@ caller casts to expected type
 
 ---
 
-### 8.4.3 用 factory 创建实例的接口
+### 8.4.3 用 factory 创建实例的接口（🟡 中）
 
-#### 创建 object by name
+**创建 object by name**
 
 ```systemverilog
 uvm_object raw_obj;
@@ -787,7 +787,7 @@ if (!$cast(tr, raw_obj))
     `uvm_fatal("FACTORY", "created object has wrong type")
 ```
 
-#### 创建 object by type
+**创建 object by type**
 
 ```systemverilog
 uvm_object raw_obj;
@@ -807,7 +807,7 @@ if (!$cast(tr, raw_obj))
 tr = my_transaction::type_id::create("tr");
 ```
 
-#### 创建 component by name
+**创建 component by name**
 
 ```systemverilog
 uvm_component raw_comp;
@@ -822,7 +822,7 @@ if (!$cast(scb, raw_comp))
     `uvm_fatal("FACTORY", "component cast failed")
 ```
 
-#### 创建 component by type
+**创建 component by type**
 
 ```systemverilog
 uvm_component raw_comp;
@@ -843,7 +843,7 @@ scb = my_scoreboard::type_id::create("scb", this);
 component 应在父 component 的 `build_phase()` 或更早创建。
 connect 完成后再动态插入 component 会破坏 UVM 生命周期和拓扑。
 
-#### 四种底层接口对比
+**四种底层接口对比**
 
 | 接口 | 目标 | 标识方式 | 关键附加参数 |
 |------|------|----------|--------------|
@@ -854,7 +854,7 @@ connect 完成后再动态插入 component 会破坏 UVM 生命周期和拓扑�
 
 ---
 
-### 8.4.4 factory 机制的本质
+### 8.4.4 factory 机制的本质（🔴 高）
 factory 可以理解为对 `new()` 的增强封装。
 原始 `new()`：
 
@@ -892,9 +892,9 @@ factory 的收益：
 
 ---
 
-## 8.5 factory 设计与调试实践
+## 8.5 factory 设计与调试实践（🟢 低）
 
-### 8.5.1 设置 override 的时机
+### 8.5.1 设置 override 的时机（🟢 低）
 override 必须发生在目标对象创建之前。
 推荐在 test 的 `build_phase()` 中先设置，再调用会创建目标的父类逻辑时要特别谨慎。
 
@@ -909,7 +909,7 @@ endfunction
 若 `super.build_phase()` 先完成对象创建，后设置 override 对已存在对象无效。
 具体顺序要根据父类实现决定，不能机械地认为 `super` 永远第一句。
 
-### 8.5.2 factory 与 config_db 的分工
+### 8.5.2 factory 与 config_db 的分工（🟢 低）
 
 | 需求 | 使用机制 |
 |------|----------|
@@ -920,7 +920,7 @@ endfunction
 不要为一个布尔配置创建大量派生类。
 也不要用 config_db 模拟复杂多态算法。
 
-### 8.5.3 可维护的 override 原则
+### 8.5.3 可维护的 override 原则（🟢 低）
 - 基类应提供稳定接口和默认行为。
 - 派生类只覆盖必要行为。
 - 优先 type-safe 的 by-type API。
