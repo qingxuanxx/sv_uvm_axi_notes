@@ -23,6 +23,12 @@
 15. [UVM 的 objection 机制是什么？有什么用？](#15-uvm-的-objection-机制是什么有什么用)
 16. [TLM 中 PORT、EXPORT、IMP 的区别？](#16-tlm-中-port-export-imp-的区别)
 17. [验证环境中为什么用 tlm_fifo？它解决了什么问题？](#17-验证环境中为什么用-tlm_fifo它解决了什么问题)
+18. [seq.start() 与 start_item/finish_item 的区别？](#18-seqstart-与-start_itemfinish_item-的区别)
+19. [driver 与 sequencer 的握手机制？](#19-driver-与-sequencer-的握手机制)
+20. [sequence 的生命周期回调有哪些？顺序是什么？](#20-sequence-的生命周期回调有哪些顺序是什么)
+21. [m_sequencer 与 p_sequencer 的区别？](#21-m_sequencer-与-p_sequencer-的区别)
+22. [使用 uvm_do 宏时 sequence 会不会阻塞？](#22-使用-uvm_do-宏时-sequence-会不会阻塞)
+23. [sequence 脱离 sequencer 时，如何直接向 driver 发送激励？](#23-sequence-脱离-sequencer-时如何直接向-driver-发送激励)
 
 ---
 
@@ -535,5 +541,171 @@ tlm_fifo 本质是组件之间的"中间仓库"：发送方把 transaction 存�
 > 一句话：**tlm_fifo 是中间仓库——节奏解耦、把 analysis 广播转成可主动拉取、多路缓冲可调试；接收方处理轻量时直接用 IMP 更简单。**
 
 ---
+
+## 18. seq.start() 与 start_item/finish_item 的区别？
+
+### 题目来源
+
+- 平头哥 · 数字IC验证 · 校招 · 一面（凉经）（seq.start() 与 start_item...end_item 的差异）
+- 通用 · 数字IC验证 · 实习 · 面试题汇总（UVM 中 sequence 的启动机制）
+
+### 考点
+
+- 两种"启动"的层次区别（启动整个 sequence vs 发送单个 item）
+- start_item/finish_item 在 uvm_do 内部的位置
+
+### 参考答案
+
+两者是"启动一个 sequence"和"发送一个 item"两个不同层次的动作。
+
+**第一，seq.start(sequencer) 是启动整个 sequence。** 它让 sequence 的 body() 开始执行，是"剧本开演"；而 start_item/finish_item 是 body 内部"发送单个 item"的一步。
+
+**第二，start_item/finish_item 是发送一个 item 的握手。** start_item 申请发送资格（排队等仲裁），finish_item 把 item 交出去并等 driver 的 item_done——它们成对出现，是 uvm_do 宏展开后的内部实现。
+
+**第三，关系**：start 启动 body，body 里用 uvm_do（约等于 start_item+finish_item）逐笔发送。一个 start 里通常有多个 start_item/finish_item 对。
+
+> 一句话：**start() 启动整个 sequence（开演），start_item/finish_item 发送单笔 item（演中的每一句）——一个 start 套多个 start_item/finish_item 对。**
+
+---
+
+## 19. driver 与 sequencer 的握手机制？
+
+### 题目来源
+
+- 小米 · ASIC验证 · 实习（UVM 中 sequencer 与 driver 的握手机制）
+- 某TPU公司 · 数字IC验证 · 校招（driver 与 sequence 的握手机制）
+- 字节跳动 · 数字IC验证 · 校招 · SOC方向（driver 驱动 sequence 的方式）
+- 泰凌微 · 数字IC验证 · 校招 · 一面（driver 向 sequence 传递 item 的方式）
+- 燧原科技 · 数字IC验证 · 校招 · AI方向（sequence、driver、sequencer 三者工作交互逻辑）
+- 某公司 · 数字IC验证 · 校招 · 一面（sequencer 与 driver 交互逻辑）
+
+### 考点
+
+- sequence → sequencer → driver 的完整链路
+- get_next_item 与 item_done 成对
+- 拉取式 vs 推送式
+
+### 参考答案
+
+完整链路是"sequence 产生、sequencer 仲裁、driver 拉取"三步。
+
+**第一，sequence 产生 item 并请求发送。** 通过 uvm_do（内部 start_item 申请授权、finish_item 提交），经 sequencer 仲裁后进入派发队列。
+
+**第二，driver 主动拉取。** driver 在 run 阶段用 seq_item_port.get_next_item 取下一笔——**是"拉"不是"推"**，没货就阻塞等待，driver 自己掌控节奏。
+
+**第三，driver 驱动完调 item_done。** 通知 sequencer 这笔完成，sequence 的 finish_item 才返回、继续下一笔。**get_next_item 与 item_done 必须成对**，漏掉 item_done 会导致 sequence 永远等待（卡死）。
+
+**三者职责**：sequence 决定"发什么"（造 item），sequencer 决定"谁先发"（仲裁），driver 决定"怎么发"（驱动时序）——激励策略与信号时序分离。
+
+> 一句话：**sequence 造 → sequencer 仲裁派发 → driver get_next_item 拉取驱动 → item_done 归还——拉取式握手，item_done 漏了会卡死。**
+
+---
+
+## 20. sequence 的生命周期回调有哪些？顺序是什么？
+
+### 题目来源
+
+- 泰凌微 · 数字IC验证 · 校招 · 一面（pre_body/body/post_body 执行顺序是 sequence 生命周期考点）
+
+### 考点
+
+- pre_start/pre_body/body/post_body/post_start 五个回调顺序
+- body 是必须写的，pre/post 可选
+- call_pre_post 参数的作用
+
+### 参考答案
+
+sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、body、post_body、post_start。
+
+**第一，body 是核心**——它是唯一必须实现的回调，真正产生并发送激励，用户最常重载它。
+
+**第二，pre_body 和 post_body 是可选包装**——body 前做准备（比如 raise objection）、body 后收尾（比如 drop objection），是否调用由 start 的 call_pre_post 参数决定（默认调用）。
+
+**第三，pre_start 和 post_start 是最外层**——几乎不用，留给最早准备/最后清理。
+
+**工程上最常用的组合**：pre_body 里 raise objection、body 里发激励、post_body 里 drop objection——用 starting_phase 控制 phase 存活。
+
+> 一句话：**五个回调 = pre_start → pre_body → body → post_body → post_start；body 必写、pre/post 可选（控制 objection 常用）、最外层两个几乎不用。**
+
+---
+
+## 21. m_sequencer 与 p_sequencer 的区别？
+
+### 题目来源
+
+- 平头哥 · 数字IC验证 · 校招 · 一面（凉经）（p_sqr 与 m_sqr 的区别）
+- 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（m sequencer 与 p sequencer 的区别；p sequencer 的定义与用途）
+- 某TPU公司 · 数字IC验证 · 校招（m_sequencer 与 p_sequencer 的关系）
+
+### 考点
+
+- 静态类型 vs 强类型句柄
+- uvm_declare_p_sequencer 宏的作用
+- 使用风险与可复用性
+
+### 参考答案
+
+**第一，m_sequencer 是通用句柄。** 它的静态类型是 uvm_sequencer_base，每个 sequence 自带，用于通用的 sequence 基础机制——但它只能访问 sequencer 的通用成员，访问不了用户 sequencer 的自定义字段。
+
+**第二，p_sequencer 是强类型句柄。** 通过 `uvm_declare_p_sequencer(具体类型)` 宏声明，启动时自动把 m_sequencer 强制转换成用户指定的 sequencer 类型，因此能直接访问自定义字段（如 port_id）和子 sequencer。
+
+**第三，使用注意。** 启动在错误类型的 sequencer 上会转换失败，p_sequencer 为 null，必须先判空；过度依赖 p_sequencer 会把 sequence 绑死到特定 sequencer 类型，降低可复用性——通用 sequence 应优先用 config_db 传参。
+
+> 一句话：**m_sequencer 是通用句柄（访问不了自定义字段），p_sequencer 是宏生成的强类型句柄（能访问，但要判空、别滥用，否则牺牲可复用性）。**
+
+---
+
+## 22. 使用 uvm_do 宏时 sequence 会不会阻塞？
+
+### 题目来源
+
+- 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（使用 uvm_do 宏时 sequence 是否会出现阻塞）
+
+### 考点
+
+- uvm_do 展开为 start_item/finish_item
+- 阻塞点：等授权 + 等 item_done
+- 非阻塞的替代（send_request 等）
+
+### 参考答案
+
+**会阻塞，而且有两处。** uvm_do 展开后包含 start_item 和 finish_item 两步，各有一个阻塞点：
+
+**第一，start_item 阻塞**——申请发送资格时排队等 sequencer 仲裁，没授权就一直等。
+
+**第二，finish_item 阻塞**——提交后等 driver 对这笔 item 调 item_done，driver 没处理完就一直等。
+
+所以 uvm_do 是"发一笔、等一笔"的同步方式，保证 sequence 的产生节奏和 driver 的处理能力同步。**如果需要非阻塞发送**（比如发出去不管、继续干别的），就不能用 uvm_do，要改用 start_item + send_request 这类非阻塞接口。
+
+> 一句话：**uvm_do 会阻塞两次——start_item 等授权、finish_item 等 item_done；要"发完不管"就改用 send_request 非阻塞发送。**
+
+---
+
+## 23. sequence 脱离 sequencer 时，如何直接向 driver 发送激励？
+
+### 题目来源
+
+- 字节跳动 · AI芯片验证 · 一面（sequence 脱离 sequencer 时，如何直接向 driver 发送激励）
+
+### 考点
+
+- driver 的 seq_item_port 机制
+- 绕过 sequencer 直接握手
+- 应用场景与代价
+
+### 参考答案
+
+正常流程是 sequence 经过 sequencer 仲裁再交给 driver，但某些场景（比如简单的单 sequence 环境）可以让 sequence 绕过 sequencer，直接和 driver 的 seq_item_port 握手。
+
+**做法**：driver 侧的 seq_item_port 是一个端口，它可以直接 connect 到一个 sequencer，也可以被 sequence 直接"借用"——sequence 通过持有该端口的句柄，直接调 get_next_item/item_done 对应的发送接口（如 start_item/finish_item 的底层），跳过仲裁。
+
+**适用场景**：没有多 sequence 竞争、不需要仲裁的单激励环境；减少 sequencer 这一层开销。
+
+**代价**：失去了仲裁和调度能力，多个 sequence 并发时不可用——本质是用"少一层调度"换"简化结构"。
+
+> 一句话：**脱离 sequencer 直接发 = sequence 绕过仲裁、直接和 driver 的 seq_item_port 握手——单激励简化可以，多 sequence 并发不可用。**
+
+---
+
 
 
