@@ -5,7 +5,7 @@
 
 ---
 
-## 7.1 线程的使用
+## 7.1 线程的使用（🔴 高）
 
 ### 7.1.1 三种 fork 对比
 
@@ -171,7 +171,7 @@ endprogram
 
 ---
 
-## 7.2 停止线程
+## 7.2 停止线程（🟡 中）
 
 ### 7.2.1 停止单个线程 — disable 标号
 
@@ -226,7 +226,7 @@ endtask
 
 ---
 
-## 7.3 线程间的通信 IPC
+## 7.3 线程间的通信 IPC（🔴 高）
 
 | 机制 | 主要用途 | 传数据？ | 排队？ |
 |------|---------|:---:|:---:|
@@ -236,7 +236,7 @@ endtask
 
 ---
 
-## 7.4 事件 Event
+## 7.4 事件 Event（🔴 高）
 
 类比：`->e` = 按门铃，`@e` = 等门铃响，`e.triggered` = 查看这一拍门铃是否响过。
 
@@ -355,7 +355,7 @@ wait(Generator::thread_count == 0);
 
 ---
 
-## 7.5 旗语 Semaphore
+## 7.5 旗语 Semaphore（🔴 高）
 
 控制对共享资源（如总线）的互斥访问：
 
@@ -391,7 +391,7 @@ endprogram
 
 ---
 
-## 7.6 信箱 Mailbox
+## 7.6 信箱 Mailbox（🔴 高）
 
 **Mailbox** = 线程安全的 FIFO，解耦生产者和消费者：
 
@@ -478,7 +478,7 @@ class Consumer {
 
 ---
 
-## 综合示例：event + semaphore + mailbox
+## 综合示例：event + semaphore + mailbox（🟡 中）
 
 ```systemverilog
 program automatic tb;
