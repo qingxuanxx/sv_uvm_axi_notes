@@ -296,7 +296,6 @@ initial begin
         $display("switch['%s'] = %0d", s, switch[s]);
 end
 ```
-```
 
 | 方法 | 说明 |
 |------|------|

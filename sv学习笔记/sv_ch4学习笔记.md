@@ -169,7 +169,6 @@ module monitor(arb_if.MONITOR arbif);   // [1] 用 modport 指定只读视角
     end
 endmodule
 ```
-```
 
 ### 4.2.6 接口的优缺点
 
@@ -276,8 +275,6 @@ program automatic test(arb_if.TEST bus);   // [1] program 块：reactive 区执�
         if (bus.cb.grant != 2'b01) // [4] 采样检查 grant
             $display("FAIL");
     end
-endprogram
-```
 endprogram
 ```
 
@@ -405,6 +402,8 @@ endprogram
 
 ## 4.5 将这些模块都连接起来（🟡 中）
 
+### 4.5.1 top 模块的职责
+
 ```systemverilog
 module top;
     bit clk;
@@ -416,20 +415,16 @@ module top;
     monitor u_mon(arbif);    // [5] 连 monitor
 endmodule
 ```
-    monitor u_mon(arbif);
-endmodule
-```
 
 ### 4.5.2 隐式端口连接 `.*`
+
+如果端口名和当前作用域中的信号名一致，可用 `.*` 自动匹配：
+
 ```systemverilog
 module top;
     bit clk;
     always #5 clk = ~clk;
     arb_if arbif(.*);   // [1] .* 隐式连接：同名信号自动连上
-    arb    u_arb(.*);
-    test   u_tb (.*);
-endmodule
-```
     arb    u_arb(.*);
     test   u_tb (.*);
 endmodule
@@ -445,6 +440,10 @@ endmodule
 
 ## 4.6 顶层作用域（🟢 低）
 
+### 4.6.1 `$unit` 和顶层作用域
+
+SystemVerilog 可在 module/program/interface/package 之外定义 parameter、const、typedef、function/task：
+
 ```systemverilog
 `timescale 1ns/1ns
 parameter int TIMEOUT = 1_000_000;      // [1] $unit 作用域参数：所有模块可见
@@ -458,11 +457,6 @@ program automatic test;
     initial begin
         #TIMEOUT;                        // [2] 用 $unit 参数做延时
         $display("%s", timeout_msg);     // [3] 用 $unit 字符串
-        $finish;
-    end
-endprogram
-```
-        $display("%s", timeout_msg);
         $finish;
     end
 endprogram

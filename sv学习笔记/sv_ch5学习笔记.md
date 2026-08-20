@@ -38,7 +38,6 @@ class Transaction;                 // [1] 类：把数据 + 操作封装在一�
     endfunction
 endclass
 ```
-```
 
 这个类把事务的数据和显示事务的方法放在一起。
 
@@ -65,6 +64,7 @@ endclass
 | Driver | 把 transaction 转换成 DUT 输入信号 |
 | Monitor | 从 DUT 输出信号中采样并还原 transaction |
 | Scoreboard | 比较实际结果和期望结果 |
+
 ```systemverilog
 class Generator;
     Transaction tr;
@@ -77,8 +77,6 @@ class Generator;
     endfunction
 endclass
 ```
-endclass
-```
 
 Generator 不直接翻转信号，而是创建一个事务对象。
 
@@ -87,6 +85,8 @@ Generator 不直接翻转信号，而是创建一个事务对象。
 ## 5.3 编写第一个类 Class（🔴 高）
 
 ### 5.3.1 类的基本结构
+
+类（Class）可以同时包含数据成员、函数 function、任务 task。
 
 ```systemverilog
 class Transaction;
@@ -100,9 +100,6 @@ class Transaction;
         crc = addr;
         foreach (data[i])
             crc ^= data[i];                // [3] 逐个异或
-    endfunction : calc_crc
-endclass : Transaction
-```
     endfunction : calc_crc
 endclass : Transaction
 ```
@@ -136,6 +133,9 @@ endclass : Transaction
 | `module` 内 | 可以 | 不推荐作为主要风格 |
 | `package` 内 | 推荐 | 适合工程化管理 |
 | 文件顶层 | 可以 | 适合简单练习 |
+
+### 5.4.2 推荐写法：放在 package 中
+
 ```systemverilog
 package trans_pkg;                // [1] package：把类打包，供多处 import
     class Transaction;
@@ -147,10 +147,6 @@ endpackage
 program automatic tb;
     import trans_pkg::*;         // [2] import 后直接用 Transaction
     initial begin
-        Transaction tr = new();
-    end
-endprogram
-```
         Transaction tr = new();
     end
 endprogram
@@ -354,16 +350,15 @@ Transaction::display_count();  // 无需创建对象即可调用
 
 ---
 
+## 5.10 类的方法（🟡 中）
+
+类中的 `task` 或 `function` 称为**方法（Method）**，可以直接访问类成员。
+
 ```systemverilog
 class Transaction;
     bit [31:0] addr, crc, data[8];
 
     function void display();       // [1] 类方法：访问自身成员（this 隐含）
-        $display("addr=%h crc=%h", addr, crc);
-    endfunction
-endclass
-```
-    function void display();
         $display("addr=%h crc=%h", addr, crc);
     endfunction
 endclass
@@ -422,7 +417,7 @@ program automatic p;
 endprogram
 ```
 
-### 5.12.3 常见陷阱：循环变量未声明
+### 5.12.2 常见陷阱：循环变量未声明
 
 ```systemverilog
 program test;
@@ -446,7 +441,7 @@ for (int i = 0; i < data.size(); i++)  // 局部声明
 
 > 📌 类建议放进 `package`，防止意外访问程序级变量。
 
-### 5.12.2 `this` 是什么
+### 5.12.3 `this` 是什么
 
 当成员变量和参数同名时，用 `this` 区分：
 
