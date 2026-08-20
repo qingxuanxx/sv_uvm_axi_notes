@@ -29,6 +29,7 @@
 21. [m_sequencer 与 p_sequencer 的区别？](#21-m_sequencer-与-p_sequencer-的区别)
 22. [使用 uvm_do 宏时 sequence 会不会阻塞？](#22-使用-uvm_do-宏时-sequence-会不会阻塞)
 23. [sequence 脱离 sequencer 时，如何直接向 driver 发送激励？](#23-sequence-脱离-sequencer-时如何直接向-driver-发送激励)
+24. [virtual sequence 是什么？和普通 sequence 有什么区别？如何协调多个 sequencer？](#24-virtual-sequence-是什么和普通-sequence-有什么区别如何协调多个-sequencer)
 
 ---
 
@@ -706,6 +707,37 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 > 一句话：**脱离 sequencer 直接发 = sequence 绕过仲裁、直接和 driver 的 seq_item_port 握手——单激励简化可以，多 sequence 并发不可用。**
 
 ---
+
+## 24. virtual sequence 是什么？和普通 sequence 有什么区别？如何协调多个 sequencer？
+
+### 题目来源
+
+- 字节跳动 · 数字IC验证 · 实习 · 高频题（virtual sequence vs 普通 sequence 的差异 + 为什么命名为 virtual）
+- 豪威科技 · 数字IC验证 · 校招 · 一面（virtual sequencer 怎么调度多个 AXI sequence）
+- 合见工软 · 数字IC验证 · 校招 · 一面（virtual sequence 与物理接口的连接方法）
+- 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（virtual sequencer 与 virtual sequence 的用法）
+- 兆易创新 · 数字IC验证 · 校招（virtual sequence 内激励在随机化时如何同步）
+
+### 考点
+
+- virtual sequence 与普通 sequence 的本质区别
+- virtual sequencer 的角色与连接方式
+- 子 sequence 之间的同步方式
+
+### 参考答案
+
+virtual sequence 是**自己不产生激励的 sequence**——body 里启动多个真实子 sequence，分别派到不同 sequencer，用于**协调多个接口**的测试场景。
+
+**第一，和普通 sequence 的区别。** 普通 sequence 直接产生 transaction、只能绑一个 sequencer；virtual sequence 自己不发 transaction，body 里用 uvm_do_on 启动子 sequence。"virtual" 指它不对应任何物理接口，是"虚拟地"协调多个真实 sequence。
+
+**第二，怎么协调多个 sequencer。** virtual sequence 通过 p_sequencer（宏声明的强类型句柄）访问 virtual sequencer，从中拿到各真实 sequencer 的句柄（p_bus_sqr、p_eth_sqr），再用 uvm_do_on 把子 sequence 派过去。virtual sequencer 是"句柄收纳盒"——只存句柄、不直接连 driver，env 在 connect 时把 agent 的真实 sequencer 塞进去。
+
+**第三，子 sequence 之间怎么同步。** 顺序同步靠代码顺序（uvm_do_on 阻塞，前一个结束才启动下一个）；并行同步用 fork/join（join 等全部、join_any 等一个、join_none 不等要收尾）；握手式同步用 uvm_event 的 trigger/wait_trigger。
+
+> 一句话：**virtual sequence 是总指挥——自己不产生激励，经 p_sequencer 拿到 virtual sequencer 里的真实 sequencer 句柄，用 uvm_do_on 派发子 sequence 协调多个接口；子 sequence 同步靠代码顺序/fork/uvm_event。**
+
+---
+
 
 
 

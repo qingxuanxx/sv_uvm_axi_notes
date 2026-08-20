@@ -1004,188 +1004,235 @@ endclass
 > 记忆：**继承扩展 = 基类写流程 + 虚方法当钩子，派生类只覆盖钩子——"模板方法"；流程一份、策略多变；配 factory override 能不改代码换场景，但别把继承树挖太深。**
 ## 6.5 virtual sequence 的使用（🔴 高）
 ### 6.5.1 带双路输入输出端口的 DUT（🔴 高）
-当 DUT 有多个接口时，每个 agent 通常有独立 sequencer。
-单个普通 sequence 只能自然地绑定一个 sequencer。
-virtual sequence 用于协调多个 sequencer 上的子 sequence。
-结构：
-```text
-                 virtual_sequence
-                         |
-                virtual_sequencer
-                 /               \
-          p_bus_sqr           p_eth_sqr
-              |                   |
-       bus_sequence         eth_sequence
-              |                   |
-         bus_driver            eth_driver
+
+**核心**：DUT 有多个接口（如 bus + ethernet）时，每个接口一个 sequencer——普通 sequence 只能绑一个，virtual sequence 是"总指挥"：自己不产生激励，body 里用 `uvm_do_on` 把子 sequence 派到不同的 sequencer。
+
+**结构：virtual sequence → virtual sequencer → 各真实 sequencer**
+
+```mermaid
+flowchart TD
+    VS["virtual_sequence（总指挥：不直接发激励）"] --> VSR["virtual_sequencer（只保存真实 sequencer 的句柄）"]
+    VSR --> PB["p_bus_sqr"]
+    VSR --> PE["p_eth_sqr"]
+    PB --> BS["bus_sequence（真实 sequence，真正发激励）"]
+    PE --> ES["eth_sequence（真实 sequence，真正发激励）"]
+    BS --> BD["bus_driver"]
+    ES --> ED["eth_driver"]
 ```
-virtual sequencer 通常不直接连接 driver。
-它只保存其他 sequencer 的句柄。
+
+**关键理解**：**virtual sequencer 不直接连 driver**——它只是一个"句柄收纳盒"，装着各真实 sequencer 的句柄。
+
+**① virtual sequencer：只存句柄**
+
 ```systemverilog
-class my_virtual_sequencer extends uvm_sequencer;
-    `uvm_component_utils(my_virtual_sequencer)
-    bus_sequencer p_bus_sqr;
-    eth_sequencer p_eth_sqr;
-    function new(string name, uvm_component parent);
-        super.new(name, parent);
-    endfunction
+class my_virtual_sequencer extends uvm_sequencer;   // [1] 定义"盒子"：一个 sequencer 类
+    `uvm_component_utils(my_virtual_sequencer)      // [2] 注册（组件标准动作）
+    bus_sequencer p_bus_sqr;    // [3] 抽屉 1：准备装真实 bus sequencer 句柄
+    eth_sequencer p_eth_sqr;    // [4] 抽屉 2：准备装真实 eth sequencer 句柄
 endclass
 ```
-在 env 中连接句柄：
+
+**② env 里把真实 sequencer 塞进 virtual sequencer**
+
 ```systemverilog
 function void my_env::connect_phase(uvm_phase phase);
     super.connect_phase(phase);
-    v_sqr.p_bus_sqr = bus_agt.sqr;
-    v_sqr.p_eth_sqr = eth_agt.sqr;
+    v_sqr.p_bus_sqr = bus_agt.sqr;   // [1] 把真实 bus sequencer 句柄塞进抽屉 1
+    v_sqr.p_eth_sqr = eth_agt.sqr;   // [2] 把真实 eth sequencer 句柄塞进抽屉 2
 endfunction
 ```
-virtual sequence：
+
+**③ virtual sequence：body 里用 `uvm_do_on` 派发**
+
 ```systemverilog
 class system_virtual_sequence extends uvm_sequence;
-    `uvm_object_utils(system_virtual_sequence)
-    `uvm_declare_p_sequencer(my_virtual_sequencer)
+    `uvm_object_utils(system_virtual_sequence)   // [1] 注册（virtual sequence 是 object）
+    `uvm_declare_p_sequencer(my_virtual_sequencer)  // [2] 宏：把所在 sequencer 强类型成"盒子"，body 才能用 p_sequencer
+
     virtual task body();
-        bus_config_sequence cfg_seq;
+        bus_config_sequence cfg_seq;   // [3] 子 sequence 句柄（真正发激励的）
         eth_data_sequence   data_seq;
-        // 配置流量启动在 bus sequencer。
-        `uvm_do_on(cfg_seq, p_sequencer.p_bus_sqr)
-        // 数据流量启动在 ethernet sequencer。
-        `uvm_do_on(data_seq, p_sequencer.p_eth_sqr)
+        `uvm_do_on(cfg_seq, p_sequencer.p_bus_sqr)   // [4] 打开盒子拿 bus sequencer，把 cfg_seq 派过去
+        `uvm_do_on(data_seq, p_sequencer.p_eth_sqr)  // [5] 打开盒子拿 eth sequencer，把 data_seq 派过去
     endtask
 endclass
 ```
-virtual sequence 的价值不是“发送一种特殊 transaction”，而是“组织系统级流程”。
 
----
+**注意 `uvm_do_on`**：和 `uvm_do` 的区别就是多了"指定 sequencer"（6.3 学的 `_on` 后缀）——这里显式派到 p_sequencer 里的某个真实 sequencer。
 
-### 6.5.2 sequence 之间的简单同步（🔴 高）
-顺序同步最简单：
+**virtual sequence 的价值**：不是"发送一种特殊 transaction"，而是**组织系统级流程**——"先配 bus 寄存器，再发 eth 数据"这种跨接口协调，普通 sequence 做不到。
+
+> 记忆：**virtual sequence = 总指挥（自己不做）；virtual sequencer = 句柄收纳盒（不连 driver）；uvm_do_on 把子 sequence 派到指定 sequencer；价值是组织系统级流程。**
+### 6.5.2 sequence 之间的同步（🔴 高）
+
+**核心：virtual sequence 里多个子 sequence 的"先后/并行"关系，靠两样东西控制——代码顺序（串行）和 fork/join（并行）。**
+
+**顺序同步：代码按顺序写，天然串行**
+
 ```systemverilog
-`uvm_do_on(reset_seq, p_sequencer.p_bus_sqr)
-`uvm_do_on(config_seq, p_sequencer.p_bus_sqr)
-`uvm_do_on(data_seq, p_sequencer.p_eth_sqr)
+`uvm_do_on(reset_seq,  p_sequencer.p_bus_sqr)   // [1] 先复位
+`uvm_do_on(config_seq, p_sequencer.p_bus_sqr)   // [2] 再配置（等复位结束才启动）
+`uvm_do_on(data_seq,   p_sequencer.p_eth_sqr)   // [3] 后发数据（等配置结束）
 ```
-后一个 sequence 只有在前一个结束后才启动。
-并行同步：
+
+**关键**：`uvm_do_on` 是**阻塞**的——后一个 sequence **只有在前一个完全结束后才启动**。这就是最简单的顺序同步：**代码顺序 = 执行顺序**（先复位 → 再配置 → 后数据）。
+
+**并行同步：fork/join 控制**
+
 ```systemverilog
 fork
-    `uvm_do_on(tx_seq, p_sequencer.p_tx_sqr)
-    `uvm_do_on(rx_seq, p_sequencer.p_rx_sqr)
-join
+    `uvm_do_on(tx_seq, p_sequencer.p_tx_sqr)   // [1] 发送线程
+    `uvm_do_on(rx_seq, p_sequencer.p_rx_sqr)   // [2] 接收线程
+join                                             // [3] 等两路都完成
 ```
-`join` 等待两路全部完成。
-`join_any` 只等待任一路完成，剩余线程仍会继续运行，除非显式终止。
-`join_none` 不等待，需要额外设计收尾同步。
 
----
+**三种 join 的区别**（面试高频）：
 
+| join | 行为 | 用在哪 |
+|------|------|--------|
+| `join` | **等全部**线程完成才继续 | 两路都干完才做下一步（默认） |
+| `join_any` | **等任一路**完成就继续 | 先到先走；**剩余线程还在后台跑**，要显式处理 |
+| `join_none` | **完全不等待**就继续 | 发出去不管；**要额外设计收尾同步**（如 wait fork） |
+
+**join_any/join_none 的坑**（重点）：
+
+- `join_any` 继续后，**没跑完的线程仍会运行**——如果不等它们就结束 phase，会被强杀或产生残留；
+- `join_none` 完全不等待，**必须自己设计收尾**（比如 `wait fork` 等所有派生线程结束）——否则 sequence 结束了后台还在跑。
+
+> 记忆：**顺序同步 = 代码顺序（uvm_do_on 阻塞，前一个结束才启动下一个）；并行同步 = fork/join——join 等全部、join_any 等一个、join_none 不等但要自己收尾。**
 ### 6.5.3 sequence 之间的复杂同步（🟡 中）
-可使用 `uvm_event` 表达阶段事件：
+
+**核心：顺序同步靠代码顺序、简单并行靠 fork/join，但"一个 sequence 要等另一个的某个时刻"这种握手式同步，需要 uvm_event 或共享状态 + wait。**
+
+**方式一：uvm_event 阶段事件**（推荐，语义清晰）
+
 ```systemverilog
 uvm_event cfg_done;
 virtual task body();
-    cfg_done = new("cfg_done");
+    cfg_done = new("cfg_done");          // [1] 创建事件
     fork
         begin
             config_seq.start(p_sequencer.p_bus_sqr);
-            cfg_done.trigger();            // 配置完成后发事件
+            cfg_done.trigger();          // [2] 配置完成 → 触发事件
         end
         begin
-            cfg_done.wait_trigger();       // 数据流等待配置完成
-            data_seq.start(p_sequencer.p_data_sqr);
+            cfg_done.wait_trigger();     // [3] 数据流阻塞等待事件
+            data_seq.start(p_sequencer.p_data_sqr);   // [4] 事件到了才发数据
         end
     join
 endtask
 ```
-也可使用共享状态加 `wait`：
+
+**关键理解**：`trigger()` 是"发信号"，`wait_trigger()` 是"等信号"——配置线程干完触发，数据线程等到触发才启动。比"纯 fork/join"更精确：**数据流不用等配置线程完全结束（join 语义），而是等它干到"配置完成"这个节点**。
+
+**方式二：共享状态 + wait**（更简单粗暴）
+
 ```systemverilog
 bit cfg_finished;
 fork
     begin
         config_seq.start(p_sequencer.p_bus_sqr);
-        cfg_finished = 1'b1;
+        cfg_finished = 1'b1;             // [1] 配置完置标志
     end
     begin
-        wait (cfg_finished);
+        wait (cfg_finished);             // [2] 轮询等待标志
         data_seq.start(p_sequencer.p_data_sqr);
     end
 join
 ```
-复杂同步要考虑：
-- 事件先 trigger 后 wait 是否会丢失。
-- 复位后事件状态是否需要清理。
-- 一个事件是单次通知还是计数信号。
-- 并发分支失败时谁负责结束其他分支。
-- sequence 退出时是否仍有后台线程存活。
 
----
+**注意**：`wait(cfg_finished)` 是**轮询**（每个时间步检查），uvm_event 的 `wait_trigger` 是**事件驱动**（更高效）。标志法简单但要注意标志初值和复位清理。
 
+**复杂同步的 5 个问题**：
+
+1. **事件先 trigger 后 wait 会不会丢？** ——uvm_event 默认会"记住"触发状态，后 wait 也能等到（已触发则立即返回）；普通 event 则可能丢失；
+2. **复位后事件状态要清理吗？** ——复位后旧触发状态可能残留，要 `reset()`；
+3. **事件是"单次通知"还是"计数信号"？** ——单次用 event，要计数/多次用 semaphore 或队列；
+4. **并发分支失败，谁负责结束其他分支？** ——一个分支报错，另一个还卡在 wait 上会挂死，要有超时或清理机制；
+5. **sequence 退出时还有后台线程吗？** ——join_none/join_any 留下的线程要确认收尾（wait fork）。
+
+> 记忆：**握手式同步用 uvm_event（trigger/wait_trigger，事件驱动、可记住状态）或共享标志 + wait（轮询）；复杂同步五问——事件丢失、复位清理、单次或计数、失败清理、后台线程。**
 ### 6.5.4 仅在 virtual sequence 中控制 objection（🔴 高）
-推荐由顶层 virtual sequence 或 test 统一控制 objection。
+
+**核心：objection 由"顶层"统一控制（test 或 virtual sequence），子 sequence 一律不管——避免多个子 sequence 各自 raise/drop 导致的责任混乱。**
+
+**test 统一控制**（推荐）：
+
 ```systemverilog
 task my_test::main_phase(uvm_phase phase);
     system_virtual_sequence vseq;
-    phase.raise_objection(this);
+    phase.raise_objection(this);           // [1] 顶层 raise（test 最清楚测试何时结束）
     vseq = system_virtual_sequence::type_id::create("vseq");
-    vseq.start(env.v_sqr);
-    phase.drop_objection(this);
+    vseq.start(env.v_sqr);                 // [2] 跑完整个 virtual sequence
+    phase.drop_objection(this);            // [3] 全部完成才 drop
 endtask
 ```
-子 sequence 只负责业务步骤：
+
+**子 sequence 只负责业务**：
+
 ```systemverilog
 virtual task body();
     // 不在这里 raise/drop，避免组合后 objection 责任混乱。
     repeat (100)
-        `uvm_do(req)
+        `uvm_do(req)                       // [1] 子 sequence 只发激励
 endtask
 ```
-统一控制的优点：
-- 测试结束条件清晰。
-- 子 sequence 可自由组合。
-- 避免多个子 sequence 重复 raise/drop。
-- 易于设置 drain time。
 
----
+**为什么子 sequence 不 raise/drop**：virtual sequence 会组合多个子 sequence（可能还有嵌套），如果每个子 sequence 都自己 raise/drop，同一测试里 objection 计数被反复加减，责任说不清、也容易漏 drop。
 
+**统一控制的 4 个优点**：
+
+- **测试结束条件清晰**——只有顶层一个 raise/drop 对，结束时机一眼看清；
+- **子 sequence 可自由组合**——子 sequence 不掺和 objection，随便拼装复用；
+- **避免重复 raise/drop**——不会出现多个子 sequence 各自加减计数；
+- **易于设置 drain time**——drain time 挂在顶层 phase 上，一次设置全平台生效。
+
+> 记忆：**objection 统一由顶层管（test 或 virtual sequence）——顶层 raise、跑完 drop；子 sequence 只发激励不碰 objection；结束清晰、组合自由、drain 好设。**
 ### 6.5.5 在 sequence 中慎用 fork（🟡 中）
-危险写法：
+
+**核心：sequence 里 fork 出的后台线程，sequence 结束≠线程结束——最危险的是 `join_none` 后 body 直接返回，后台线程成了"野线程"。**
+
+**危险写法**（面试常考"哪里错了"）
+
 ```systemverilog
 virtual task body();
     fork
-        forever send_background_traffic();
-    join_none
-    // body 很快返回，但后台线程仍然存在。
+        forever send_background_traffic();   // [1] 无限后台线程
+    join_none                                // [2] 不等它
+    // body 很快返回，但后台线程仍然存在！
 endtask
 ```
-可能后果：
-- sequence 已结束，后台线程仍访问其成员。
-- phase 结束时线程被强制杀死。
-- 仍在等待 sequencer grant，造成难定位的挂起。
-- 多次启动 sequence 后累积多个后台流量线程。
-更可控的写法：
+
+**问题**：body 返回后，后台 `forever` 线程还在跑——它访问 sequence 的成员（此时 sequence 可能已被回收/复用），phase 结束时又被强杀，还可能卡在等 grant 上造成挂起；多次启动 sequence 还会**累积多个后台线程**。
+
+**可控写法：后台 + 前台配合，用标志位停止**
+
 ```systemverilog
 virtual task body();
     bit stop_background;
     fork
         begin
-            while (!stop_background)
+            while (!stop_background)            // [1] 后台：标志位为 0 就一直跑
                 send_one_background_item();
         end
         begin
-            run_foreground_flow();
-            stop_background = 1'b1;
+            run_foreground_flow();              // [2] 前台：干正事
+            stop_background = 1'b1;             // [3] 干完置位，让后台退出
         end
-    join
+    join                                        // [4] join 等两路都结束
 endtask
 ```
-原则：
-- 能 `join` 就明确 `join`。
-- 使用 `join_any` 后明确处理剩余线程。
-- 使用 `join_none` 时提供可验证的退出条件。
-- 循环索引传入 fork 时声明 `automatic` 副本。
 
----
+**关键改进**：① 后台用 `while(!标志)` 而不是 `forever`——有明确的退出条件；② 前台干完置标志；③ 用 `join` 等后台真正退出——**sequence 结束时没有任何残留线程**。
 
+**四条原则**（记住）：
+
+1. **能 join 就明确 join**——让所有线程都在 body 内结束；
+2. **用 join_any 后明确处理剩余线程**（不能放着不管）；
+3. **用 join_none 时提供可验证的退出条件**（如标志位/事件）；
+4. **循环索引传入 fork 时声明 automatic 副本**（否则所有线程共享同一个 i，6.3 多端口数组的坑）。
+
+> 记忆：**sequence 里 fork 后台线程要"管得住"——join_none + forever = 野线程（挂起/强杀/累积）；正确姿势是标志位退出 + join 收尾；循环索引记得 automatic。**
 ## 6.6 在 sequence 中使用 `config_db`（🟡 中）
 ### 6.6.1 在 sequence 中获取参数（🟡 中）
 sequence 不是 component，因此没有稳定的 component 层次位置。

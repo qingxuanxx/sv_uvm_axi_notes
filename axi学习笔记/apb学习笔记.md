@@ -149,8 +149,8 @@ stateDiagram-v2
 ### 3.1 最重要的完成条件
 
 ```systemverilog
-// 只有“选中 + ACCESS 阶段 + Completer 就绪”同时成立，
-// 当前 APB 传输才会在这个 PCLK 上升沿完成。
+// [1] 只有“选中 + ACCESS 阶段 + Completer 就绪”同时成立，
+// [2] 当前 APB 传输才会在这个 PCLK 上升沿完成。
 apb_complete = PSEL && PENABLE && PREADY;
 ```
 
@@ -165,8 +165,8 @@ apb_complete = PSEL && PENABLE && PREADY;
 某个 Completer 判断自己是否处于有效访问阶段，应使用：
 
 ```systemverilog
-// PENABLE 是整条 APB 总线共享的阶段信号，
-// 必须再与本外设自己的 PSEL 组合，才能判断本外设正在被访问。
+// [1] PENABLE 是整条 APB 总线共享的阶段信号，
+// [2] 必须再与本外设自己的 PSEL 组合，才能判断本外设正在被访问。
 PSEL_this && PENABLE
 ```
 
@@ -241,7 +241,7 @@ PSEL=1, PENABLE=1
 Completer 必须在完成沿之前提供有效 `PRDATA`。Requester 在：
 
 ```systemverilog
-// 读数据 PRDATA 与错误 PSLVERR 都应在这个完成事件上采样。
+// [1] 读数据 PRDATA 与错误 PSLVERR 都应在这个完成事件上采样。
 PSEL && PENABLE && PREADY
 ```
 
@@ -258,7 +258,7 @@ PSEL && PENABLE && PREADY
 规范明确要求：读传输中所有 `PSTRB` 位必须为 `0`。
 
 ```systemverilog
-// PSTRB 只描述写数据的有效字节；读访问必须全部清零。
+// [1] PSTRB 只描述写数据的有效字节；读访问必须全部清零。
 if (!PWRITE)
     PSTRB = '0;
 ```
@@ -325,9 +325,9 @@ PSTRB[3] -> PWDATA[31:24]
 寄存器按字节更新示例：
 
 ```systemverilog
-// DATA_WIDTH/8 就是 byte lane 的数量，例如 32-bit 数据有 4 个 lane。
+// [1] DATA_WIDTH/8 就是 byte lane 的数量，例如 32-bit 数据有 4 个 lane。
 for (int i = 0; i < DATA_WIDTH/8; i++) begin
-    // 每个 PSTRB 位只控制与它对应的 8-bit 字节。
+    // [2] 每个 PSTRB 位只控制与它对应的 8-bit 字节。
     if (PSTRB[i])
         reg_data[i*8 +: 8] <= PWDATA[i*8 +: 8];
 end
@@ -347,7 +347,7 @@ end
 `PSLVERR` 只在传输最后一个周期有效：
 
 ```systemverilog
-// PSLVERR 只在传输完成周期有协议意义。
+// [1] PSLVERR 只在传输完成周期有协议意义。
 PSEL && PENABLE && PREADY
 ```
 
@@ -410,12 +410,12 @@ APB write PSLVERR -> AXI BRESP
 可以使用：
 
 ```systemverilog
-// 32-bit 寄存器按 4-byte 对齐，因此忽略最低 2 位进行 word 译码。
+// [1] 32-bit 寄存器按 4-byte 对齐，因此忽略最低 2 位进行 word 译码。
 case (PADDR[5:2])
-    4'h0: ... // 0x00
-    4'h1: ... // 0x04
-    4'h2: ... // 0x08
-    4'h3: ... // 0x0C
+    4'h0: ... // [2] 0x00
+    4'h1: ... // [3] 0x04
+    4'h2: ... // [4] 0x08
+    4'h3: ... // [5] 0x0C
 endcase
 ```
 
@@ -427,7 +427,7 @@ endcase
 
 ```systemverilog
 constraint aligned_c {
-    // 32-bit 访问按 4-byte 对齐；地址最低两位必须为 0。
+    // [1] 32-bit 访问按 4-byte 对齐；地址最低两位必须为 0。
     addr[1:0] == 2'b00;
 }
 ```
@@ -440,14 +440,14 @@ constraint aligned_c {
 
 ```systemverilog
 interface apb_if #(
-    // 地址、数据宽度参数化，便于同一 interface 复用于不同项目。
+    // [1] 地址、数据宽度参数化，便于同一 interface 复用于不同项目。
     parameter int ADDR_WIDTH = 32,
     parameter int DATA_WIDTH = 32
 ) (
     input logic PCLK,
     input logic PRESETn
 );
-    // Requester -> Completer：请求和写数据方向的信号。
+    // [2] Requester -> Completer：请求和写数据方向的信号。
     logic [ADDR_WIDTH-1:0] PADDR;
     logic                  PSEL;
     logic                  PENABLE;
@@ -455,27 +455,27 @@ interface apb_if #(
     logic [DATA_WIDTH-1:0] PWDATA;
     logic [DATA_WIDTH/8-1:0] PSTRB;
     logic [2:0]            PPROT;
-    // Completer -> Requester：完成、读数据与错误响应。
+    // [3] Completer -> Requester：完成、读数据与错误响应。
     logic                  PREADY;
     logic [DATA_WIDTH-1:0] PRDATA;
     logic                  PSLVERR;
 
     clocking requester_cb @(posedge PCLK);
-        // input #1step 在时钟沿前的采样区读取 DUT 输出，避免 testbench/DUT race；
-        // output #0 表示驱动值在本 clocking event 输出。
+        // [4] input #1step 在时钟沿前的采样区读取 DUT 输出，避免 testbench/DUT race；
+        // [5] output #0 表示驱动值在本 clocking event 输出。
         default input #1step output #0;
         output PADDR, PSEL, PENABLE, PWRITE, PWDATA, PSTRB, PPROT;
         input  PREADY, PRDATA, PSLVERR;
     endclocking
 
     clocking monitor_cb @(posedge PCLK);
-        // Monitor 只采样，不驱动协议信号。
+        // [6] Monitor 只采样，不驱动协议信号。
         default input #1step;
         input PADDR, PSEL, PENABLE, PWRITE, PWDATA, PSTRB, PPROT;
         input PREADY, PRDATA, PSLVERR;
     endclocking
 
-    // modport 限制不同验证组件能看到的 clocking block 和复位信号。
+    // [7] modport 限制不同验证组件能看到的 clocking block 和复位信号。
     modport requester (clocking requester_cb, input PRESETn);
     modport monitor   (clocking monitor_cb, input PRESETn);
 endinterface
@@ -487,169 +487,28 @@ endinterface
 
 ## 12. Requester 驱动任务
 
-### 12.1 写任务
-
-```systemverilog
-task automatic apb_write(
-    virtual apb_if.requester vif,
-    logic [31:0] addr,
-    logic [31:0] data,
-    logic [3:0]  strb,
-    output logic err
-);
-    // SETUP：PSEL 拉高、PENABLE 保持低，同时给出本次写请求的全部信息。
-    vif.requester_cb.PSEL    <= 1'b1;
-    vif.requester_cb.PENABLE <= 1'b0;
-    vif.requester_cb.PWRITE  <= 1'b1;
-    vif.requester_cb.PADDR   <= addr;
-    vif.requester_cb.PWDATA  <= data;
-    vif.requester_cb.PSTRB   <= strb;
-    // 这里使用普通、安全、数据访问；实际 sequence 可以把 PPROT 参数化。
-    vif.requester_cb.PPROT   <= 3'b000;
-    // SETUP 必须完整保持一个周期，再进入 ACCESS。
-    @(vif.requester_cb);
-
-    // ACCESS：只改变 PENABLE；地址、方向、数据和属性继续保持。
-    vif.requester_cb.PENABLE <= 1'b1;
-    // PREADY 可能连续为 0，因此至少等待一个 ACCESS 采样点并循环等待。
-    do @(vif.requester_cb);
-    while (!vif.requester_cb.PREADY);
-
-    // 循环退出时正处于完成沿，此时 PSLVERR 才有协议意义。
-    err = vif.requester_cb.PSLVERR;
-
-    // 返回 IDLE。若要连续访问，可直接进入下一笔 SETUP。
-    vif.requester_cb.PSEL    <= 1'b0;
-    vif.requester_cb.PENABLE <= 1'b0;
-endtask
-```
-
-### 12.2 读任务
-
-```systemverilog
-task automatic apb_read(
-    virtual apb_if.requester vif,
-    logic [31:0] addr,
-    output logic [31:0] data,
-    output logic err
-);
-    // SETUP：读访问使用 PWRITE=0，地址在整个传输期间保持。
-    vif.requester_cb.PSEL    <= 1'b1;
-    vif.requester_cb.PENABLE <= 1'b0;
-    vif.requester_cb.PWRITE  <= 1'b0;
-    vif.requester_cb.PADDR   <= addr;
-    // APB 规范要求读传输时 PSTRB 全为 0。
-    vif.requester_cb.PSTRB   <= '0;
-    vif.requester_cb.PPROT   <= 3'b000;
-    @(vif.requester_cb);
-
-    // 下一拍进入 ACCESS，并允许 Completer 用 PREADY 插入任意等待周期。
-    vif.requester_cb.PENABLE <= 1'b1;
-    do @(vif.requester_cb);
-    while (!vif.requester_cb.PREADY);
-
-    // 只在 PSEL && PENABLE && PREADY 的完成沿采样返回信息。
-    data = vif.requester_cb.PRDATA;
-    err  = vif.requester_cb.PSLVERR;
-
-    vif.requester_cb.PSEL    <= 1'b0;
-    vif.requester_cb.PENABLE <= 1'b0;
-endtask
-```
-
-注意：driver 必须等待真正的完成条件，不能假设外设永远零等待。
-
----
-
+写任务流程：SETUP 拉 `PSEL` 并给出地址/数据/方向 → 下一拍拉 `PENABLE` 进 ACCESS → do-while 等 `PREADY=1` → 完成沿采样 `PSLVERR` → 拉低返回 IDLE。
+读任务类似：`PWRITE=0`、`PSTRB` 全 0，完成沿采样 `PRDATA`/`PSLVERR`。
+driver 必须等真正的完成条件（`PSEL && PENABLE && PREADY`），不能假设外设永远零等待。
 ## 13. 简单 Completer 设计
 
-### 13.1 零等待寄存器外设
-
-```systemverilog
-// 零等待外设可以把 PREADY 常接 1；传输仍然需要 SETUP 和 ACCESS 两拍。
-assign PREADY = 1'b1;
-
-always_comb begin
-    // 组合逻辑先给默认值，避免推断锁存器。
-    PRDATA  = '0;
-    PSLVERR = 1'b0;
-
-    // SETUP 和 ACCESS 都可以进行地址译码，但 Requester 只在完成沿采样 PRDATA。
-    if (PSEL && !PWRITE) begin
-        unique case (PADDR[5:2])
-            4'h0: PRDATA = ctrl_reg;
-            4'h1: PRDATA = status_reg;
-            4'h2: PRDATA = data_reg;
-            default: begin
-                PRDATA  = '0;
-                // 只让非法地址错误出现在 ACCESS；PREADY 常高，所以该周期即完成周期。
-                PSLVERR = PENABLE;
-            end
-        endcase
-    end
-end
-
-always_ff @(posedge PCLK or negedge PRESETn) begin
-    if (!PRESETn) begin
-        // 异步低有效复位寄存器状态。
-        ctrl_reg <= '0;
-        data_reg <= '0;
-    end
-    // 写副作用只在真正完成且无错误的上升沿发生一次。
-    else if (PSEL && PENABLE && PREADY && PWRITE && !PSLVERR) begin
-        unique case (PADDR[5:2])
-            // 按 PSTRB 分别更新每个字节，未使能字节保留旧值。
-            4'h0: for (int i = 0; i < 4; i++)
-                if (PSTRB[i]) ctrl_reg[i*8 +: 8] <= PWDATA[i*8 +: 8];
-            4'h2: for (int i = 0; i < 4; i++)
-                if (PSTRB[i]) data_reg[i*8 +: 8] <= PWDATA[i*8 +: 8];
-            default: ;
-        endcase
-    end
-end
-```
-
-寄存器副作用应绑定到完成沿，避免等待期间重复执行写操作。
-
-### 13.2 为什么不能只判断 `PSEL && PENABLE`
-
-如果 `PREADY` 连续三拍为 `0`，ACCESS 会持续三拍。若写逻辑每拍都执行：
-
-```systemverilog
-// 错误示例：若 PREADY 连续为 0，ACCESS 会保持多拍，FIFO 可能被重复写入。
-if (PSEL && PENABLE && PWRITE)
-    fifo_push(PWDATA); // 错误：可能 push 多次
-```
-
-正确做法：
-
-```systemverilog
-// 正确示例：加入 PREADY，只在传输完成事件上产生一次副作用。
-if (PSEL && PENABLE && PREADY && PWRITE)
-    fifo_push(PWDATA);
-```
-
----
-
+零等待外设可以把 `PREADY` 常接 1；地址译码用组合逻辑，读数据 `PRDATA` 只需在完成沿有效。
+写副作用（寄存器更新）必须绑定到完成沿 `PSEL && PENABLE && PREADY && PWRITE`——否则 `PREADY=0` 等待期间会重复写入（例如 FIFO 被 push 多次）。
 ## 14. 协议断言 SVA
 
-### 14.1 SETUP 后必须进入 ACCESS
+两条核心断言：
 
 ```systemverilog
+// [1] SETUP 后下一拍必须进入 ACCESS
 property p_setup_to_access;
     @(posedge PCLK) disable iff (!PRESETn)
-    // |=> 表示下一拍检查：有效 SETUP 的下一拍必须进入 ACCESS。
     PSEL && !PENABLE |=> PSEL && PENABLE;
 endproperty
 a_setup_to_access: assert property (p_setup_to_access);
-```
 
-### 14.2 等待期间控制信号稳定
-
-```systemverilog
+// [2] 等待期间（PREADY=0）请求字段必须稳定
 property p_stable_during_wait;
     @(posedge PCLK) disable iff (!PRESETn)
-    // 当前拍正在等待时，下一拍仍须保持选择、ACCESS 状态和请求 payload。
     PSEL && PENABLE && !PREADY
     |=> PSEL && PENABLE &&
         $stable({PADDR, PWRITE, PWDATA, PSTRB, PPROT});
@@ -657,211 +516,31 @@ endproperty
 a_stable_during_wait: assert property (p_stable_during_wait);
 ```
 
-### 14.3 `PENABLE` 不能在没有选择时有效
-
-```systemverilog
-property p_enable_requires_select;
-    @(posedge PCLK) disable iff (!PRESETn)
-    // 单 Completer 接口中，PENABLE 有效时必须同时选中该接口。
-    PENABLE |-> PSEL;
-endproperty
-a_enable_requires_select: assert property (p_enable_requires_select);
-```
-
-### 14.4 读访问不允许非零 `PSTRB`
-
-```systemverilog
-property p_read_strb_zero;
-    @(posedge PCLK) disable iff (!PRESETn)
-    // |-> 是同拍蕴含：检测到读请求时，PSTRB 必须已经为 0。
-    PSEL && !PWRITE |-> PSTRB == '0;
-endproperty
-a_read_strb_zero: assert property (p_read_strb_zero);
-```
-
-### 14.5 错误只在完成周期使用
-
-如果设计约定非完成周期必须拉低：
-
-```systemverilog
-property p_slverr_only_on_complete;
-    @(posedge PCLK) disable iff (!PRESETn)
-    // 这是常见项目约束，比规范“非完成周期建议拉低”更严格。
-    PSLVERR |-> PSEL && PENABLE && PREADY;
-endproperty
-```
-
-这比规范更严格，因为规范只是推荐其他周期拉低。只有在项目接口约定明确时才把它作为 error assertion。
-
----
-
+其余常用断言：`PENABLE` 有效时必须 `PSEL` 有效；读访问 `PSTRB` 必须全 0；`PSLVERR` 只在完成周期有效。
 ## 15. UVM transaction 建模
 
-```systemverilog
-class apb_item extends uvm_sequence_item;
-    // rand 字段由 sequence 随机产生，描述 Requester 发出的请求。
-    rand bit [31:0] addr;
-    rand bit        write;
-    rand bit [31:0] wdata;
-    rand bit [3:0]  strb;
-    rand bit [2:0]  prot;
-
-         // 非 rand 字段由 driver/monitor 在完成沿回填，描述执行结果。
-         bit [31:0] rdata;
-         bit        slverr;
-         int unsigned wait_cycles;
-
-    // 默认只生成 32-bit 对齐访问；非法地址测试可以临时关闭该约束。
-    constraint aligned_c { addr[1:0] == 2'b00; }
-    // 读操作不允许携带写字节使能。
-    constraint read_strb_c { !write -> strb == 4'b0000; }
-
-    // 字段自动化宏支持 print/copy/compare/record 等常见 UVM 操作。
-    `uvm_object_utils_begin(apb_item)
-        `uvm_field_int(addr,        UVM_ALL_ON)
-        `uvm_field_int(write,       UVM_ALL_ON)
-        `uvm_field_int(wdata,       UVM_ALL_ON)
-        `uvm_field_int(strb,        UVM_ALL_ON)
-        `uvm_field_int(prot,        UVM_ALL_ON)
-        `uvm_field_int(rdata,       UVM_ALL_ON)
-        `uvm_field_int(slverr,      UVM_ALL_ON)
-        `uvm_field_int(wait_cycles, UVM_ALL_ON)
-    `uvm_object_utils_end
-
-    function new(string name = "apb_item");
-        super.new(name);
-    endfunction
-endclass
-```
-
-transaction 表示“一次完成的 APB 访问”，不是 SETUP 和 ACCESS 两个独立 item。
-
----
-
+transaction 表示"一次完成的 APB 访问"：
+- rand 字段（addr/write/wdata/strb/prot）由 sequence 随机产生；
+- 非 rand 字段（rdata/slverr/wait_cycles）由 driver/monitor 在完成沿回填；
+- 默认约束：地址按 4-byte 对齐、读操作 `PSTRB` 全 0。
 ## 16. Monitor 的正确采样方法
 
-Monitor 可以在 SETUP 捕获请求字段，在完成沿补充返回字段：
+SETUP 拍采样请求字段（addr/write/data/strb），完成沿（`PSEL && PENABLE && PREADY`）采样返回字段（rdata/slverr），只发布一次完整 transaction。
 
-```systemverilog
-task apb_monitor::run_phase(uvm_phase phase);
-    forever begin
-        // 每个 PCLK 通过只读 monitor clocking block 采样一次。
-        @(vif.monitor_cb);
-
-        // SETUP 是一笔新 transaction 的起点；连续访问时 PSEL 可能不会拉低。
-        if (vif.monitor_cb.PSEL && !vif.monitor_cb.PENABLE) begin
-            apb_item tr = apb_item::type_id::create("tr");
-            tr.addr  = vif.monitor_cb.PADDR;
-            tr.write = vif.monitor_cb.PWRITE;
-            tr.wdata = vif.monitor_cb.PWDATA;
-            tr.strb  = vif.monitor_cb.PSTRB;
-            tr.prot  = vif.monitor_cb.PPROT;
-            tr.wait_cycles = 0;
-
-            // 一直等到 ACCESS 完成。等待周期只统计 PENABLE=1 且 PREADY=0 的拍数。
-            do begin
-                @(vif.monitor_cb);
-                if (vif.monitor_cb.PENABLE && !vif.monitor_cb.PREADY)
-                    tr.wait_cycles++;
-            end while (!(vif.monitor_cb.PSEL &&
-                         vif.monitor_cb.PENABLE &&
-                         vif.monitor_cb.PREADY));
-
-            // 退出循环的当前采样点就是完成沿，此时补齐返回字段。
-            tr.rdata  = vif.monitor_cb.PRDATA;
-            tr.slverr = vif.monitor_cb.PSLVERR;
-            // 只发布一次完整 transaction，不能在每个等待周期重复发布。
-            ap.write(tr);
-        end
-    end
-endtask
-```
-
-### 16.1 Monitor 易错点
-
-- 看到 `PSEL` 就立即发送 transaction，导致响应字段还没出现。
-- 每个等待周期都发送一次 transaction。
-- 在 `PREADY` 高但 `PENABLE` 低时误判完成。
-- 连续传输中等待 `PSEL` 拉低，结果漏掉下一笔。
-- 没有通过 clocking block 采样，产生 race。
-
----
-
+易错点：看到 `PSEL` 就发（响应字段还没出现）；每个等待周期都发；在 `PREADY=1` 但 `PENABLE=0` 时误判完成；连续传输中死等 `PSEL` 拉低（可能不拉低）。
 ## 17. Scoreboard 与寄存器预测
 
-对于寄存器外设，reference model 通常保存一个镜像：
+寄存器外设用镜像预测：
+- 写完成且无错 → 按 `PSTRB` 更新镜像；
+- 读完成且无错 → 预测期望值并与 `PRDATA` 比较；
+- 收到错误 → 按项目约定决定是否更新镜像。
 
-```text
-APB write 完成且无错误 -> 按 PSTRB 更新镜像
-APB read  完成且无错误 -> 预测期望值并比较 PRDATA
-收到错误               -> 按项目约定决定是否更新镜像
-```
-
-按 `PSTRB` 合并数据：
-
-```systemverilog
-function automatic bit [31:0] merge_by_strb(
-    bit [31:0] old_data,
-    bit [31:0] new_data,
-    bit [3:0]  strb
-);
-    // 先复制旧值，确保 strobe=0 的字节自然保持。
-    bit [31:0] result = old_data;
-    // foreach 自动遍历 strb 的所有 byte lane。
-    foreach (strb[i])
-        if (strb[i]) result[i*8 +: 8] = new_data[i*8 +: 8];
-    return result;
-endfunction
-```
-
-若使用 UVM RAL，应考虑寄存器的 RO、WO、W1C、RC 等访问策略，而不是简单地认为读写都无副作用。
-
----
-
+用 UVM RAL 时注意寄存器的 RO/WO/W1C/RC 等访问策略，不能假设读写都无副作用。
 ## 18. 功能覆盖建议
 
-### 18.1 基本 coverpoint
+covergroup 基本采样点：方向（read/write）、错误（slverr）、等待深度（bins 分零等待/短等待/长等待）、`PSTRB` 组合；用 cross 组合"方向 × 错误"。
 
-```systemverilog
-covergroup apb_cg with function sample(apb_item tr);
-    // 方向、错误和等待长度是 APB 最基本的行为维度。
-    cp_dir: coverpoint tr.write;
-    cp_err: coverpoint tr.slverr;
-    cp_wait: coverpoint tr.wait_cycles {
-        // 将等待深度分成零等待、短等待和长等待，便于观察反压覆盖。
-        bins zero  = {0};
-        bins short = {[1:3]};
-        bins long  = {[4:15]};
-    }
-    cp_strb: coverpoint tr.strb iff (tr.write) {
-        // iff 保证只有写 transaction 才采样 PSTRB。
-        bins none = {4'b0000};
-        bins byte[] = {4'b0001, 4'b0010, 4'b0100, 4'b1000};
-        bins half[] = {4'b0011, 4'b1100};
-        bins full = {4'b1111};
-        bins sparse = default;
-    }
-    // 交叉覆盖确认读/写两种方向都见过成功、失败和不同等待长度。
-    dir_x_err  : cross cp_dir, cp_err;
-    dir_x_wait : cross cp_dir, cp_wait;
-endgroup
-```
-
-### 18.2 建议测试场景
-
-| 场景 | 检查点 |
-|---|---|
-| 零等待读写 | 两阶段时序、数据正确 |
-| 随机等待 | 等待期间信号稳定、只完成一次 |
-| 连续同外设访问 | `PSEL` 可连续，`PENABLE` 必须回低 |
-| 不同外设切换 | `PSELx` 独热、地址译码正确 |
-| 各种 `PSTRB` | 字节更新正确 |
-| 非法地址 | `PSLVERR` 和副作用符合约定 |
-| 权限失败 | `PPROT` 检查正确 |
-| 复位打断 | 状态机回到 IDLE，无伪传输 |
-
----
-
+建议测试场景：零等待读写、随机等待、连续同外设访问、不同外设切换、各种 `PSTRB`、非法地址、权限失败、复位打断。
 ## 19. 常见错误总表
 
 | 错误理解/实现 | 正确理解 |
@@ -894,35 +573,7 @@ endgroup
 
 ---
 
-## 21. 练习题
-
-### 练习 1
-
-某周期 `PSEL=0, PENABLE=0, PREADY=1`，传输是否完成？
-
-答案：否。`PREADY` 在非 ACCESS 阶段没有完成含义。
-
-### 练习 2
-
-`PSEL=1, PENABLE=1, PREADY=0` 连续保持 5 拍，外设写 FIFO 应 push 几次？
-
-答案：0 次。直到完成沿才 push 一次。
-
-### 练习 3
-
-32 位 APB 中，向 `0x1000` 写 `32'hAABB_CCDD`，`PSTRB=4'b0101`，哪些字节更新？
-
-答案：`[7:0]` 写入 `DD`，`[23:16]` 写入 `BB`，其他字节保持。
-
-### 练习 4
-
-为什么连续访问同一个外设时 `PSEL` 能保持高，而 `PENABLE` 不能保持高？
-
-答案：`PSEL` 只表示外设仍被选择；`PENABLE=0` 是新传输必需的 SETUP 阶段标志。
-
----
-
-## 本章总结
+## 21. 本章总结
 
 ### 学习重点排序
 

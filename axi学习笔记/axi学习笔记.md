@@ -76,8 +76,8 @@ Master interface <--- AXI point-to-point ---> Slave interface
 例如：
 
 ```systemverilog
-// 只有在这个 ACLK 上升沿同时采到 RVALID 和 RREADY，
-// Master 才真正消费一个 read data beat。
+// [1] 只有在这个 ACLK 上升沿同时采到 RVALID 和 RREADY，
+// [2] Master 才真正消费一个 read data beat。
 r_fire = RVALID && RREADY;
 ```
 
@@ -206,7 +206,7 @@ AxBURST 地址如何变化
 ### 5.1 `AxLEN`
 
 ```systemverilog
-// AxLEN 使用“拍数减 1”编码，所以 8'h00 代表 1 beat，8'hFF 代表 256 beats。
+// [1] AxLEN 使用“拍数减 1”编码，所以 8'h00 代表 1 beat，8'hFF 代表 256 beats。
 beats = AxLEN + 1;
 ```
 
@@ -228,7 +228,7 @@ AXI4 中：
 ### 5.2 `AxSIZE`
 
 ```systemverilog
-// 左移等价于 2^AxSIZE：SIZE=0/1/2/3 分别表示 1/2/4/8 bytes。
+// [1] 左移等价于 2^AxSIZE：SIZE=0/1/2/3 分别表示 1/2/4/8 bytes。
 bytes_per_beat = 1 << AxSIZE;
 ```
 
@@ -335,8 +335,8 @@ wrap boundary = 0x10
 常用检查：
 
 ```systemverilog
-// 这里只表达“首地址与最后一个被访问字节仍在同一 4KB 页”的思路。
-// 真正计算 end_addr 时必须考虑 burst 类型、长度、size、非对齐和 wrap 行为。
+// [1] 这里只表达“首地址与最后一个被访问字节仍在同一 4KB 页”的思路。
+// [2] 真正计算 end_addr 时必须考虑 burst 类型、长度、size、非对齐和 wrap 行为。
 (start_addr[ADDR_WIDTH-1:12] == end_addr[ADDR_WIDTH-1:12])
 ```
 
@@ -398,8 +398,8 @@ interconnect 负责把地址和写数据重新对齐并路由到正确 Slave。
 每次：
 
 ```systemverilog
-// beat 计数、WLAST 检查和写数据入队都只能由 w_fire 触发，
-// WVALID 单独为 1 只表示 Source 正在等待 Receiver。
+// [1] beat 计数、WLAST 检查和写数据入队都只能由 w_fire 触发，
+// [2] WVALID 单独为 1 只表示 Source 正在等待 Receiver。
 w_fire = WVALID && WREADY;
 ```
 
@@ -673,7 +673,7 @@ Exclusive read/write 对必须保持关键属性匹配，例如 ID、地址、�
 
 ```systemverilog
 interface axi4_if #(
-    // 例子使用 32-bit 地址、64-bit 数据和 4-bit transaction ID。
+    // [1] 例子使用 32-bit 地址、64-bit 数据和 4-bit transaction ID。
     parameter int ADDR_WIDTH = 32,
     parameter int DATA_WIDTH = 64,
     parameter int ID_WIDTH   = 4
@@ -681,7 +681,7 @@ interface axi4_if #(
     input logic ACLK,
     input logic ARESETn
 );
-    // AW 通道：一拍携带整笔 write burst 的起始地址、长度、大小和类型。
+    // [2] AW 通道：一拍携带整笔 write burst 的起始地址、长度、大小和类型。
     logic [ID_WIDTH-1:0]   AWID;
     logic [ADDR_WIDTH-1:0] AWADDR;
     logic [7:0]            AWLEN;
@@ -689,18 +689,18 @@ interface axi4_if #(
     logic [1:0]            AWBURST;
     logic                  AWVALID, AWREADY;
 
-    // W 通道：AXI4 没有 WID，多个 write burst 的数据必须按 AW 顺序发送。
+    // [3] W 通道：AXI4 没有 WID，多个 write burst 的数据必须按 AW 顺序发送。
     logic [DATA_WIDTH-1:0] WDATA;
     logic [DATA_WIDTH/8-1:0] WSTRB;
     logic                  WLAST;
     logic                  WVALID, WREADY;
 
-    // B 通道：每个完整 write burst 只返回一次响应，BID 用于匹配 AWID。
+    // [4] B 通道：每个完整 write burst 只返回一次响应，BID 用于匹配 AWID。
     logic [ID_WIDTH-1:0]   BID;
     logic [1:0]            BRESP;
     logic                  BVALID, BREADY;
 
-    // AR 通道：描述一笔 read burst；读写地址通道可以并行工作。
+    // [5] AR 通道：描述一笔 read burst；读写地址通道可以并行工作。
     logic [ID_WIDTH-1:0]   ARID;
     logic [ADDR_WIDTH-1:0] ARADDR;
     logic [7:0]            ARLEN;
@@ -708,15 +708,15 @@ interface axi4_if #(
     logic [1:0]            ARBURST;
     logic                  ARVALID, ARREADY;
 
-    // R 通道：每个 beat 都携带 RID/RRESP，最后一拍额外断言 RLAST。
+    // [6] R 通道：每个 beat 都携带 RID/RRESP，最后一拍额外断言 RLAST。
     logic [ID_WIDTH-1:0]   RID;
     logic [DATA_WIDTH-1:0] RDATA;
     logic [1:0]            RRESP;
     logic                  RLAST;
     logic                  RVALID, RREADY;
 
-    // 把五个通道的握手条件封装成函数，checker/monitor 可统一调用，
-    // 避免在不同组件中重复书写并意外漏掉 READY。
+    // [7] 把五个通道的握手条件封装成函数，checker/monitor 可统一调用，
+    // [8] 避免在不同组件中重复书写并意外漏掉 READY。
     function automatic bit aw_fire();
         return AWVALID && AWREADY;
     endfunction
@@ -746,9 +746,9 @@ endinterface
 若 AW 阻塞：
 
 ```systemverilog
-// AW Source 被 backpressure 时，不能撤销 VALID，也不能切换到下一笔请求。
+// [1] AW Source 被 backpressure 时，不能撤销 VALID，也不能切换到下一笔请求。
 if (AWVALID && !AWREADY) begin
-    // AWVALID、AWID、AWADDR、AWLEN、AWSIZE、AWBURST、attributes 全部保持
+    // [2] AWVALID、AWID、AWADDR、AWLEN、AWSIZE、AWBURST、attributes 全部保持
 end
 ```
 
@@ -797,14 +797,14 @@ RVALID && !RREADY -> RID/RDATA/RRESP/RLAST 必须稳定
 错误：
 
 ```systemverilog
-// 错误示例：只看到 WVALID 就计数；WREADY=0 时同一 beat 会被重复统计。
+// [1] 错误示例：只看到 WVALID 就计数；WREADY=0 时同一 beat 会被重复统计。
 if (WVALID) beat_count <= beat_count + 1;
 ```
 
 正确：
 
 ```systemverilog
-// 正确示例：只有真实 W handshake 才消费一个 beat。
+// [1] 正确示例：只有真实 W handshake 才消费一个 beat。
 if (WVALID && WREADY) beat_count <= beat_count + 1;
 ```
 
@@ -814,348 +814,80 @@ R 通道发送计数同理。
 
 ## 18. 基础 SVA
 
-### 18.1 通用 sticky VALID
+两条核心断言：
 
 ```systemverilog
+// [1] sticky VALID：VALID=1 且未被接收时，下一拍必须保持（五条通道通用）
 property p_valid_sticky(valid, ready);
     @(posedge ACLK) disable iff (!ARESETn)
-    // 当前拍 VALID=1 且未被接收时，下一拍 VALID 必须继续保持。
     valid && !ready |=> valid;
 endproperty
-
-// 五条通道都遵循同一条 sticky VALID 规则；B/R 通道的 Source 是 Slave。
 a_awvalid_sticky: assert property (p_valid_sticky(AWVALID, AWREADY));
 a_wvalid_sticky : assert property (p_valid_sticky(WVALID,  WREADY));
 a_bvalid_sticky : assert property (p_valid_sticky(BVALID,  BREADY));
 a_arvalid_sticky: assert property (p_valid_sticky(ARVALID, ARREADY));
 a_rvalid_sticky : assert property (p_valid_sticky(RVALID,  RREADY));
-```
 
-不同工具对带形式参数的 property 支持风格不同，也可以分别展开。
-
-### 18.2 地址 payload 稳定
-
-```systemverilog
+// [2] 反压时 payload 稳定（以 AW 为例；W/R 类似，W 要含 WLAST）
 property p_aw_payload_stable;
     @(posedge ACLK) disable iff (!ARESETn)
-    // AW 阻塞时，下一拍不仅 VALID 要保持，所有 burst 描述字段也不能改变。
     AWVALID && !AWREADY
     |=> AWVALID && $stable({AWID, AWADDR, AWLEN, AWSIZE, AWBURST});
 endproperty
+a_aw_payload_stable: assert property (p_aw_payload_stable);
 ```
 
-### 18.3 写数据 payload 稳定
-
-```systemverilog
-property p_w_payload_stable;
-    @(posedge ACLK) disable iff (!ARESETn)
-    // 特别把 WLAST 放进 stable 集合，避免最后一拍在 backpressure 中漂移。
-    WVALID && !WREADY
-    |=> WVALID && $stable({WDATA, WSTRB, WLAST});
-endproperty
-```
-
-### 18.4 R payload 稳定
-
-```systemverilog
-property p_r_payload_stable;
-    @(posedge ACLK) disable iff (!ARESETn)
-    // Master 未拉高 RREADY 时，Slave 必须保存 RID、数据、响应和 LAST。
-    RVALID && !RREADY
-    |=> RVALID && $stable({RID, RDATA, RRESP, RLAST});
-endproperty
-```
-
-### 18.5 `WLAST/RLAST` 检查
-
-这类检查更适合带计数状态的 checker：
-
-```text
-on AW fire: 为新 write context 保存 expected_beats=AWLEN+1
-on W fire : 最后一拍必须 WLAST，其他拍禁止 WLAST
-
-on AR fire: 按 ARID 保存 expected_beats
-on R fire : 按 RID 找 context，最后一拍必须 RLAST
-```
-
-仅靠一个短 SVA property 很难正确覆盖多 ID 和交织返回。
-
----
+WLAST/RLAST 检查更适合带计数状态的 checker：AW fire 时记录 expected_beats=AWLEN+1，W 握手时核对最后一拍。
 
 ## 19. UVM transaction 建模
 
-### 19.1 地址级 transaction
+transaction 表示"一笔 AXI 事务"：
+- 地址阶段字段：kind（读/写）、id、addr、len（协议原始编码 = beat 数-1）、size、burst；
+- 数据字段：动态数组 data[]/strb[]（长度 = len+1，读事务 strb 为空）；
+- response 由 monitor/driver 回填：读每 beat 一个 RRESP，写统一用第 0 项存 BRESP；
+- 关键约束：数据长度 = len+1（否则 driver 无法产生正确的 LAST）、size ≤ 总线宽度、WRAP 只允许 2/4/8/16 beat 且地址按 beat 对齐、INCR 不跨 4KB。
 
-```systemverilog
-// 枚举让 transaction 打印时直接显示 READ/WRITE 和 FIXED/INCR/WRAP，
-// 比未命名的 bit 编码更易阅读和覆盖。
-typedef enum {AXI_READ, AXI_WRITE} axi_kind_e;
-typedef enum bit [1:0] {
-    AXI_FIXED = 2'b00,
-    AXI_INCR  = 2'b01,
-    AXI_WRAP  = 2'b10
-} axi_burst_e;
-
-class axi_item extends uvm_sequence_item;
-    // 地址阶段字段；len 采用协议原始编码，即实际 beat 数减 1。
-    rand axi_kind_e kind;
-    rand bit [3:0]  id;
-    rand bit [31:0] addr;
-    rand bit [7:0]  len;
-    rand bit [2:0]  size;
-    rand axi_burst_e burst;
-
-    // 动态数组保存整个 burst 的数据；写事务另外为每一拍保存 strobe。
-    rand bit [63:0] data[];
-    rand bit [7:0]  strb[];
-         // response 由 monitor/driver 回填。读事务每 beat 一个 RRESP；
-         // 若统一建模写事务，可约定 resp 只使用第 0 项保存 BRESP。
-         bit [1:0]  resp[];
-
-    constraint array_size_c {
-        // 数据数组长度必须与 AxLEN+1 一致，否则 driver 无法正确产生 LAST。
-        data.size() == len + 1;
-        kind == AXI_WRITE -> strb.size() == len + 1;
-        kind == AXI_READ  -> strb.size() == 0;
-    }
-
-    constraint bus_width_c {
-        // 64-bit interface 最多承载 8 bytes/beat，因此 AxSIZE 最大为 3。
-        size <= 3;
-    }
-
-    constraint wrap_c {
-        // WRAP 只允许 2/4/8/16 beats，起始地址还必须按单 beat 大小对齐。
-        burst == AXI_WRAP -> {
-            (len + 1) inside {2, 4, 8, 16};
-            addr % (1 << size) == 0;
-        };
-    }
-
-    // 注册 factory；复杂项目还会用 field 宏或手写 do_copy/do_compare。
-    `uvm_object_utils(axi_item)
-endclass
-```
-
-### 19.2 4KB 约束
-
-简单 INCR 场景可以计算最后字节地址并约束同页。若支持非对齐、FIXED、WRAP，应使用统一地址函数，而不是直接写一个容易错的表达式。
-
-建议把以下函数集中在 protocol utility package：
-
-- `beats(len)`
-- `bytes_per_beat(size)`
-- `beat_address(item, index)`
-- `lower_byte_lane(...)`
-- `upper_byte_lane(...)`
-- `crosses_4k(item)`
-- `expected_last(index, len)`
-
-driver、monitor、scoreboard 和 coverage 共用同一套定义，避免四处各写一份公式。
-
----
+地址计算函数（beats/bytes_per_beat/beat_address/crosses_4k 等）应集中在 protocol utility package，driver/monitor/scoreboard/coverage 共用，避免各处各写一份。
 
 ## 20. Driver 架构
 
-一个 AXI Master driver 不应把完整事务串行地写成：
+不要把事务串行写成"发 AW → 发完整 W → 等 B → 下一笔"——虽然合规，但完全失去 outstanding 和通道并发。
 
-```text
-发 AW -> 发完整 W -> 等 B -> 再处理下一笔
-```
+推荐结构：dispatcher 把 item 分发给独立的通道线程（AW/W/AR），B/R collector 按 ID 归并到完成跟踪器。写地址和写数据线程要保持 AXI4 的 W 顺序约束。
 
-这样虽然可能合规，但完全失去 outstanding 和通道并发。
-
-更合理的结构：
-
-```mermaid
-flowchart TB
-    SEQ["sequence items"] --> DISPATCH["dispatcher / ID allocator"]
-    DISPATCH --> AW["AW channel thread"]
-    DISPATCH --> W["W channel thread"]
-    DISPATCH --> AR["AR channel thread"]
-    B["B channel collector"] --> COMPLETE["completion tracker"]
-    R["R channel collector"] --> COMPLETE
-```
-
-写地址和写数据线程需要保持 AXI4 的 W 顺序约束。读返回线程按 RID 找到对应 item。
-
-### 20.1 Driver 与 Monitor 的职责
-
-- Driver 知道自己发了什么，但不能代替 monitor 作为 scoreboard 的唯一事实来源。
-- Monitor 只根据 pin-level handshake 重建实际发生的事务。
-- Scoreboard 比较预测行为和实际行为。
-
+职责划分：Driver 知道自己发了什么，但不能代替 monitor 作为唯一事实来源；Monitor 只根据握手重建实际发生的事务；Scoreboard 比较预测与实际。
 ---
 
 ## 21. Monitor 重建策略
 
-### 21.1 写通路
+写通路：AW fire 入队 → W fire 归到最早未收完数据的 AW 事务 → WLAST 完成数据部分 → B fire 按 BID 找同 ID 最早待响应事务并发布。（AXI4 W 没有 ID，数据按 AW 顺序归属。）
 
-```text
-AW fire -> aw_queue.push(address transaction)
-W fire  -> 归到 aw_queue 中最早尚未收完数据的 transaction
-WLAST   -> 完成该事务的数据部分，进入 waiting_b_by_id
-B fire  -> 按 BID 找到同 ID 最早待响应事务，填 BRESP 并发布
-```
+读通路：AR fire 按 ARID 入队 → R fire 找对应最早请求 → RLAST 完成发布。数据可能跨 RID 交织，不能只有一个全局 current_read。
 
-AXI4 W 没有 ID，因此 W 数据按 AW 顺序归属。
-
-### 21.2 读通路
-
-```text
-AR fire -> active_read_by_id[ARID].push(request)
-R fire  -> 找 RID 对应最早请求，追加 data/resp
-RLAST   -> 完整事务完成并发布
-```
-
-数据可能在不同 RID 之间交织，所以不能只有一个全局 current_read。
-
-### 21.3 何时报告协议错误
-
-- 没有对应 AW，却收到 W beat。
-- W beat 数与 AWLEN 不符。
-- WLAST 过早或过晚。
-- 没有待响应写事务却收到 BID。
-- 没有对应 ARID 却收到 RID。
-- RLAST 与 ARLEN 不符。
-- 同 ID 响应顺序错误。
-
+协议错误：无 AW 收到 W beat、W 数与 AWLEN 不符、WLAST 过早/过晚、无待响应事务却收到 BID、无 ARID 却收到 RID、RLAST 与 ARLEN 不符、同 ID 响应乱序。
 ---
 
 ## 22. Scoreboard 结构
 
-### 22.1 数据正确性
+数据正确性：memory model 按地址和 WSTRB 更新字节（strobe=0 的字节不变）；实际 byte 地址要按 burst/非对齐 byte-lane 公式换算，不能直接把 lane index 当地址偏移。
 
-Memory model 按地址和 `WSTRB` 更新字节：
+顺序正确性：不能用一个全局 FIFO 比较所有请求响应（不同 ID 允许乱序）——按 ID 建 expected_by_id[id] 队列，同 ID 按队头匹配。
 
-```systemverilog
-// 这是“按 strobe 合并写数据”的简化示意。
-// 实际 byte 地址必须通过 burst/非对齐 byte-lane 公式换算，
-// 不能在所有场景下都直接使用 beat_addr+i。
-foreach (strb[i]) begin
-    // strobe=0 的 byte 不得改变 memory model。
-    if (strb[i])
-        mem[beat_addr + i] = data[i*8 +: 8];
-end
-```
-
-真正的 `beat_addr + i` 是否正确，需要结合起始非对齐和有效 lane 计算，不能把 lane index 永远直接当地址偏移。
-
-### 22.2 顺序正确性
-
-Scoreboard 不能简单使用单个 FIFO 比较所有请求和响应，因为不同 ID 允许乱序。
-
-推荐：
-
-```text
-expected_by_id[id] = queue of expected transactions
-```
-
-同 ID 按队列头匹配，不同 ID 独立完成。
-
-### 22.3 错误响应
-
-对于非法地址：
-
-- interconnect 可能返回 DECERR。
-- 已选中的 Slave 可能返回 SLVERR。
-- read burst 的每个 beat 都要有协议完整的 R response 和正确 RLAST。
-
-错误也必须“把协议走完”，否则 Master 会永远等待。
-
----
+错误响应：非法地址可能返回 DECERR 或 SLVERR；错误也必须把协议走完（正确的 R response 和 RLAST），否则 Master 永远等待。
 
 ## 23. 功能覆盖计划
 
-### 23.1 Burst 属性
-
-- `AxLEN`：1、2、4、8、16、边界值 256。
-- `AxSIZE`：从 1 byte 到总线满宽。
-- `AxBURST`：FIXED、INCR、WRAP。
-- 对齐/非对齐。
-- 4KB 边界附近。
-
-### 23.2 通道行为
-
-- AW 在 W 前、后、同拍。
-- 每个通道独立 backpressure。
-- 连续无气泡 beat。
-- VALID 长时间等待 READY。
-- 复位打断。
-
-### 23.3 ID 与顺序
-
-- 相同 ID 多笔 outstanding。
-- 不同 ID 多笔 outstanding。
-- 不同 ID 乱序完成。
-- R beat 跨 ID 交织。
-- 同 ID 保序。
-- 最大 outstanding 深度。
-
-### 23.4 Response
-
-- OKAY、EXOKAY、SLVERR、DECERR。
-- 读 burst 中间 beat 报错。
-- exclusive 成功/失败。
-
-### 23.5 Cross 建议
-
-```text
-burst_type x size x alignment
-burst_type x length
-id_relation x completion_order
-response x read_write
-backpressure_channel x burst_length
-exclusive_result x interference
-```
-
----
+- Burst 属性：len（1/2/4/8/16/256）、size（1 byte 到总线满宽）、burst 类型、对齐/非对齐、4KB 边界。
+- 通道行为：AW 与 W 的先后、每通道独立反压、连续无气泡、VALID 长等 READY、复位打断。
+- ID 与顺序：同 ID/不同 ID outstanding、乱序完成、R 交织、同 ID 保序、最大 outstanding。
+- Response：OKAY/EXOKAY/SLVERR/DECERR、burst 中间报错、exclusive 成败。
+- 推荐 cross：burst_type × size × alignment、id_relation × completion_order、response × read_write。
 
 ## 24. 性能指标
 
-### 24.1 带宽
-
-理论峰值：
-
-```text
-bandwidth = clock_frequency * bytes_per_cycle
-```
-
-实际利用率受以下因素影响：
-
-- VALID/READY 气泡。
-- burst 长度。
-- 地址仲裁。
-- read latency。
-- write response latency。
-- outstanding 深度。
-- 数据总线宽度转换。
-
-### 24.2 延迟
-
-读延迟常指从 AR 请求到第一个 R beat 的时间。
-
-写延迟可分别统计：
-
-- AW 到第一个 W。
-- 最后 W 到 B。
-- 完整事务从发起到响应。
-
-### 24.3 验证中统计
-
-Monitor 可记录：
-
-```text
-address_accept_cycle
-first_data_cycle
-last_data_cycle
-response_cycle
-stall_cycles per channel
-max outstanding
-```
-
-这些统计能发现“功能正确但性能严重退化”的设计。
-
+带宽 = 时钟频率 × 每拍字节数；实际利用率受 VALID/READY 气泡、burst 长度、仲裁、延迟、outstanding 深度影响。
+读延迟 = AR 到第一个 R beat；写延迟可分 AW→W、最后 W→B、完整事务响应三段统计。
+Monitor 记录 address_accept/first_data/last_data/response 周期和每通道 stall 周期、最大 outstanding——能发现"功能正确但性能退化"的设计。
 ---
 
 ## 25. 常见错误总表
@@ -1202,41 +934,7 @@ max outstanding
 
 ---
 
-## 27. 练习题
-
-### 练习 1
-
-`AxLEN=8'h0F` 表示多少 beat？
-
-答案：16 beat。
-
-### 练习 2
-
-128-bit 数据总线，`AxSIZE=3'b010`，每 beat 最多传多少字节？
-
-答案：4 字节，属于窄传输；总线有 16 个 byte lane，但本 beat 只使用其中允许的一部分。
-
-### 练习 3
-
-两个读请求 ID 分别为 1 和 2，ID=2 先返回，是否合法？
-
-答案：可以。不同 ID 可以乱序完成。
-
-### 练习 4
-
-两个读请求 ID 都为 3，后发请求先返回，是否合法？
-
-答案：通常不合法。同 ID、同目标的响应必须按请求顺序返回。
-
-### 练习 5
-
-`WVALID=1, WREADY=0, WLAST=1` 是否已经结束 burst？
-
-答案：没有。最后 beat 必须真正握手，才算写数据部分完成。
-
----
-
-## 本章总结
+## 27. 本章总结
 
 ### 知识网络
 
