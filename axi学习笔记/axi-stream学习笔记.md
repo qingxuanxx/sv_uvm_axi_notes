@@ -1,8 +1,8 @@
-# AMBA AXI4-Stream 学习笔记：从 Beat 握手到 Packet 传输
+# AMBA AXI4-Stream 学习笔记：从 Beat（拍）握手到 Packet（数据包）
 
 > 适合读者：已经理解 VALID/READY，希望学习视频流、网络包、DSP 数据链路或 FPGA 中的流接口。
 >
-> 学习目标：理解 AXI4-Stream 与 memory-mapped AXI 的区别；能正确处理 backpressure、`TLAST`、`TKEEP/TSTRB`、`TID/TDEST/TUSER`；能设计 packet monitor、scoreboard 和协议断言。
+> 学习目标：理解 AXI4-Stream 与 memory-mapped AXI 的区别；正确处理反压（backpressure）、packet 边界和伴随信息（sideband）；掌握基本 monitor 与协议断言。
 
 ---
 
@@ -23,6 +23,7 @@ AXI4-Stream 常简称：
 | Transmitter | Master / Source | 驱动 `TVALID` 和 payload |
 | Receiver | Slave / Sink | 驱动 `TREADY` |
 
+> **阅读主线：** 先用 `TVALID/TREADY` 判断一个 beat 是否真的传输，再用 `TKEEP/TSTRB` 判断哪些字节有效，最后用 `TLAST` 拼成 packet。
 ---
 
 ## 1. AXI4-Stream 是什么
@@ -65,10 +66,6 @@ A -> B : 一套 AXI4-Stream
 B -> A : 另一套 AXI4-Stream
 ```
 
----
-
-## 2. 与 AXI4 memory-mapped 的区别
-
 | 对比项 | AXI4 memory-mapped | AXI4-Stream |
 |---|---|---|
 | 地址 | 有 AW/AR 地址 | 无地址 |
@@ -84,9 +81,9 @@ AXI4-Stream 的 `TID` 不是 AXI4 的 transaction ID。它描述 stream 身份�
 
 ---
 
-## 3. 信号总览
+## 2. 信号总览
 
-### 3.1 必学信号
+### 2.1 必学信号
 
 | 信号 | 方向 | 作用 |
 |---|---|---|
@@ -96,7 +93,7 @@ AXI4-Stream 的 `TID` 不是 AXI4 的 transaction ID。它描述 stream 身份�
 | `TREADY` | Receiver -> Transmitter | 可以接收当前 payload |
 | `TDATA` | Transmitter -> Receiver | 数据 |
 
-### 3.2 常用 sideband
+### 2.2 常用 sideband
 
 | 信号 | 作用 |
 |---|---|
@@ -116,7 +113,7 @@ TDATA + TKEEP + TSTRB + TLAST + TID + TDEST + TUSER
 
 ---
 
-## 4. VALID/READY 握手
+## 3. VALID/READY 与阻塞稳定性
 
 一次 transfer 发生在：
 
@@ -125,7 +122,7 @@ TDATA + TKEEP + TSTRB + TLAST + TID + TDEST + TUSER
 t_fire = TVALID && TREADY;
 ```
 
-### 4.1 三种合法关系
+### 3.1 三种合法关系
 
 ```text
 TVALID 先，TREADY 后
@@ -133,7 +130,7 @@ TREADY 先，TVALID 后
 TVALID 与 TREADY 同拍
 ```
 
-### 4.2 Transmitter 的铁律
+### 3.2 Transmitter 的铁律
 
 Transmitter 不允许等待 `TREADY=1` 才拉高 `TVALID`。
 
@@ -143,7 +140,7 @@ Transmitter 不允许等待 `TREADY=1` 才拉高 `TVALID`。
 - `TDATA` 和所有 sideband 必须保持稳定。
 - 不能因为 Receiver 暂时不 ready 就丢弃或换成下一个 beat。
 
-### 4.3 Receiver 的自由度
+### 3.3 Receiver 的自由度
 
 Receiver 可以：
 
@@ -151,7 +148,7 @@ Receiver 可以：
 - 看见 `TVALID` 后再拉高 `TREADY`。
 - 在没有 `TVALID` 时改变 `TREADY`。
 
-### 4.4 Backpressure
+### 3.4 Backpressure
 
 `TREADY=0` 就是 backpressure，表示下游暂时不能接收。
 
@@ -160,7 +157,7 @@ TVALID=1, TREADY=0 -> 当前 beat 被阻塞，没有 transfer
 TVALID=1, TREADY=1 -> 当前 beat 在上升沿被接收
 ```
 
-### 4.5 连续满带宽传输
+### 3.5 连续满带宽传输
 
 ```text
 Cycle       1      2      3      4
@@ -170,10 +167,6 @@ TDATA      D0     D1     D2     D3
 ```
 
 每拍完成一个 transfer。`TVALID` 不需要在相邻 beat 之间拉低。
-
----
-
-## 5. 为什么阻塞稳定性如此重要
 
 假设：
 
@@ -199,9 +192,9 @@ Cycle 1-3 都没有传输。Cycle 4 才真正接收。
 
 ---
 
-## 6. Byte、Beat、Packet、Stream
+## 4. Byte、Beat 与 TKEEP/TSTRB
 
-### 6.1 Byte lane
+### 4.1 Byte lane
 
 `TDATA` 按 8-bit byte lane 划分：
 
@@ -212,13 +205,13 @@ byte 2 -> TDATA[23:16]
 ...
 ```
 
-### 6.2 Transfer / Beat
+### 4.2 Transfer / Beat
 
 一次 `TVALID && TREADY` 是一个 transfer，也常叫一个 beat。
 
 一个 beat 可以包含多个 byte。
 
-### 6.3 Packet
+### 4.3 Packet
 
 一组相关 transfer 可以组成一个 packet，最后一拍用 `TLAST=1` 标记。
 
@@ -228,34 +221,27 @@ beat1 TLAST=0
 beat2 TLAST=1  -> packet end
 ```
 
-### 6.4 Stream
+### 4.4 Stream
 
 相同 `TID` 和 `TDEST` 的 transfer 属于同一个 stream。不同 stream 可以共享一条物理 AXI4-Stream link。
 
----
-
-## 7. 三种 byte 类型
-
 规范区分：
 
-### 7.1 Data byte
+### 4.5 Data byte
 
 包含有效数据，必须保留内容和相对顺序。
 
-### 7.2 Position byte
+### 4.6 Position byte
 
 不包含有效数据值，但它的位置有意义，必须保留这个位置。常用于部分更新或保持字节位置关系。
 
-### 7.3 Null byte
+### 4.7 Null byte
 
 既不包含有效数据，位置也无须保留。interconnect 可以插入或移除 null byte，只要不破坏其他字节语义。
 
 这就是为什么 AXI4-Stream 同时有 `TKEEP` 和 `TSTRB`。
 
----
-
-## 8. `TKEEP` 与 `TSTRB`
-
+最简单的记法是：`TKEEP` 先回答“这个字节位置要不要保留”，`TSTRB` 再回答“保留下来的字节是不是有效数据”。
 对于 byte lane `x`：
 
 ```text
@@ -272,7 +258,7 @@ TSTRB[x] <-> TDATA[8x +: 8]
 | 1 | 0 | Position byte，位置保留，数据值无效 |
 | 1 | 1 | Data byte，有效数据 |
 
-### 8.1 只使用 `TKEEP`
+### 4.8 只使用 `TKEEP`
 
 很多常见 IP 不使用 position byte，等效认为保留的 byte 都是 data byte。此时可以：
 
@@ -282,14 +268,14 @@ TSTRB = TKEEP
 
 或者接口完全省略 `TSTRB`，按规范默认关系处理。
 
-### 8.2 `TKEEP='0`
+### 4.9 `TKEEP='0`
 
 允许一个 transfer 的所有 `TKEEP` 位都是 0。
 
 - 若 `TLAST=0`，这样的全-null transfer 可以被抑制。
 - 若 `TLAST=1`，它可能仍承担 packet 结束语义，不能随意丢失 packet boundary。
 
-### 8.3 常见最后一拍
+### 4.10 常见最后一拍
 
 32-bit TDATA，每拍 4 字节，一个 10-byte packet：
 
@@ -303,7 +289,7 @@ beat 2: TKEEP=0011, TLAST=1  -> 2 bytes
 
 ---
 
-## 9. `TLAST` 与 packet 边界
+## 5. TLAST 与 packet 边界
 
 `TLAST=1` 表示当前已握手 transfer 是 packet 的最后一拍。
 
@@ -315,19 +301,19 @@ TVALID=1, TLAST=1, TREADY=0
 
 此时 packet 还没有结束，因为最后一拍尚未握手。
 
-### 9.1 `TLAST` 的价值
+### 5.1 `TLAST` 的价值
 
 - 通知 Receiver packet 完成。
 - 给共享链路提供自然仲裁点。
 - 防止两个 packet 被错误合并。
 
-### 9.2 packet 内的 ID/DEST
+### 5.2 packet 内的 ID/DEST
 
 同一个 packet 中的所有 byte 来自同一 source、去往同一 destination，`TID` 和 `TDEST` 应保持一致。
 
 若 `TID/TDEST` 改变，应视为另一个 stream 的 transfer，而不是同一 packet 随意换身份。
 
-### 9.3 零数据的 TLAST transfer
+### 5.3 零数据的 TLAST transfer
 
 规范允许 `TLAST=1` 但不带 data byte 或 position byte，用于：
 
@@ -339,9 +325,9 @@ Monitor 不能因为 `TKEEP='0` 就无条件忽略该 transfer。
 
 ---
 
-## 10. `TID` 与 `TDEST`
+## 6. TID 与 TDEST
 
-### 10.1 `TID`
+### 6.1 `TID`
 
 区分共享物理 link 上的多个数据 stream。
 
@@ -352,11 +338,11 @@ TID=0 -> video channel 0
 TID=1 -> video channel 1
 ```
 
-### 10.2 `TDEST`
+### 6.2 `TDEST`
 
 提供粗粒度路由信息，例如选择输出端口或目标处理单元。
 
-### 10.3 stream 的唯一性
+### 6.3 stream 的唯一性
 
 通常用二元组：
 
@@ -366,7 +352,7 @@ stream_key = {TID, TDEST}
 
 区分不同 stream。
 
-### 10.4 Interleaving
+### 6.4 Interleaving
 
 不同 stream 的 transfer 可以在同一物理 link 上逐 transfer 交织：
 
@@ -379,13 +365,13 @@ stream_key = {TID, TDEST}
 
 因此支持多 stream 的 monitor 不能只有一个全局 current_packet，必须按 `{TID,TDEST}` 保存上下文。
 
-### 10.5 Ordering
+### 6.5 Ordering
 
 同一 stream 的 transfer 必须保持顺序。不同 stream 之间没有统一的先后保证。
 
 ---
 
-## 11. `TUSER`
+## 7. TUSER
 
 `TUSER` 是用户自定义 sideband，常见用途：
 
@@ -395,7 +381,7 @@ stream_key = {TID, TDEST}
 - 元数据。
 - 包分类信息。
 
-### 11.1 两种常见语义
+### 7.1 两种常见语义
 
 ```text
 per-byte TUSER：每个 byte 有相应用户位
@@ -404,7 +390,7 @@ per-transfer TUSER：整个 beat 共享一组信息
 
 宽度转换、packing、null-byte removal 时必须保持 `TUSER` 与对应 byte 的关联。
 
-### 11.2 最大风险
+### 7.2 最大风险
 
 `TUSER` 的含义不由 AXI4-Stream 统一规定。两端如果对 bit 定义、有效时机或宽度转换规则理解不同，链路握手完全正常但功能仍然错误。
 
@@ -418,7 +404,7 @@ per-transfer TUSER：整个 beat 共享一组信息
 
 ---
 
-## 12. Reset
+## 8. Reset
 
 `ARESETn` 低有效。
 
@@ -430,90 +416,9 @@ Receiver 的 `TREADY` 复位值取决于实现容量。无论取何值，都不�
 
 ---
 
-## 13. 发送端 RTL 模式
+## 9. Width Conversion
 
-### 13.1 单级输出寄存器
-
-```systemverilog
-always_ff @(posedge ACLK or negedge ARESETn) begin
-    if (!ARESETn) begin
-        // 协议要求 Transmitter 在复位期间把 TVALID 拉低。
-        TVALID <= 1'b0;
-    end
-    else if (!TVALID || TREADY) begin
-        // 允许装载的两种情况：
-        // 1. TVALID=0，输出寄存器本来就是空的；
-        // 2. TREADY=1，旧 beat 本拍被接收，可无气泡地换入新 beat。
-        TVALID <= in_valid;
-        if (in_valid) begin
-            // 只在确认可以装载时更新 payload；backpressure 时不会执行到这里。
-            TDATA <= in_data;
-            TKEEP <= in_keep;
-            TLAST <= in_last;
-        end
-    end
-end
-```
-
-关键条件：
-
-```systemverilog
-// 常用的单级 AXIS 输出寄存器装载使能。
-// 当 TVALID=1 且 TREADY=0 时结果为 0，从而锁住当前 payload。
-load_enable = !TVALID || TREADY;
-```
-
-当 `TVALID=1 && TREADY=0` 时，寄存器不能更新。
-
-### 13.2 常见错误
-
-```systemverilog
-// 错误示例：没有检查当前输出是否被下游接收。
-if (in_valid) begin
-    TVALID <= 1;
-    TDATA  <= in_data; // 下游阻塞时仍覆盖旧 beat
-end
-```
-
-这样会在 backpressure 下丢数据。
-
----
-
-## 14. 接收端 RTL 模式
-
-Receiver 只有在有存储空间时拉高 `TREADY`：
-
-```systemverilog
-// FIFO 有空间时才能承诺接收；full 时通过 TREADY=0 反压上游。
-assign TREADY = !fifo_full;
-
-always_ff @(posedge ACLK) begin
-    // 只有真实 handshake 才 push，一次阻塞 beat 不会被重复写入 FIFO。
-    if (TVALID && TREADY) begin
-        fifo_push(TDATA, TKEEP, TLAST, TID, TDEST, TUSER);
-    end
-end
-```
-
-不能只判断 `TVALID`，否则 FIFO full 时仍然写入。
-
-### 14.1 组合路径与 skid buffer
-
-长链路中若每一级 `TREADY` 都组合向上传播，会形成很长的 ready path。
-
-常见解决：
-
-- register slice。
-- skid buffer。
-- 小 FIFO。
-
-它们既断开时序路径，又保证 backpressure 到达前的 beat 不丢失。
-
----
-
-## 15. Width Conversion
-
-### 15.1 Downsizing
+### 9.1 Downsizing
 
 把宽 beat 拆成多个窄 beat：
 
@@ -533,7 +438,7 @@ output1: upper 4 bytes, TLAST=1
 
 若高 4 bytes 全是可删除 null byte，转换器可根据规则只输出必要 transfer，但不能丢失 `TLAST`。
 
-### 15.2 Upsizing
+### 9.2 Upsizing
 
 把多个窄 beat 合并成一个宽 beat：
 
@@ -544,13 +449,13 @@ output1: upper 4 bytes, TLAST=1
 - 不能跨越已断言的 `TLAST` packet boundary。
 - byte 顺序和 sideband 关联保持。
 
-### 15.3 Packing
+### 9.3 Packing
 
 移除 null byte，让有效 byte 更紧凑。Position byte 不能像 null byte 一样随意删除，因为它的位置有意义。
 
 ---
 
-## 16. 一个 AXI4-Stream interface
+## 10. 一个 AXI4-Stream interface
 
 ```systemverilog
 interface axi_stream_if #(
@@ -602,112 +507,9 @@ endinterface
 
 ---
 
-## 17. Packet transaction 建模
+## 11. 验证视角
 
-### 17.1 Packet 级 item
-
-```systemverilog
-class axis_packet extends uvm_sequence_item;
-    // packet 级 transaction 用动态 byte 数组表达与总线宽度无关的有效数据。
-    rand byte unsigned payload[];
-    // TID/TDEST 标识 stream；这里示例假设一个 packet 内保持不变。
-    rand bit [3:0]     tid;
-    rand bit [3:0]     tdest;
-    rand bit [3:0]     tuser_first;
-
-    // valid_gap_max 控制 Transmitter 主动插入的空拍，不是 Receiver backpressure。
-    rand int unsigned valid_gap_max;
-    rand int unsigned packet_length;
-
-    constraint size_c {
-        // 同时约束显式长度字段和动态数组长度，避免两者随机后不一致。
-        packet_length inside {[0:2048]};
-        payload.size() == packet_length;
-        valid_gap_max inside {[0:10]};
-    }
-
-    // 注册 factory，便于派生错误 packet 或通过 override 替换类型。
-    `uvm_object_utils(axis_packet)
-endclass
-```
-
-Driver 负责把 `payload[]` 按 `DATA_WIDTH/8` 分割成 beats，并在最后一拍产生正确 `TKEEP/TLAST`。
-
-### 17.2 Beat 级 item
-
-协议 VIP 内部也常使用 beat item：
-
-```systemverilog
-class axis_beat extends uvm_sequence_item;
-    // beat 级对象与 pin-level 一次 handshake 一一对应。
-    bit [31:0] data;
-    // keep/strb 按 byte lane 描述 data、position、null byte。
-    bit [3:0]  keep;
-    bit [3:0]  strb;
-    // last 只有在这个 beat 真正 handshake 后才结束 packet。
-    bit        last;
-    bit [3:0]  id;
-    bit [3:0]  dest;
-    bit [3:0]  user;
-endclass
-```
-
-推荐分层：
-
-```text
-sequence 使用 packet item 表达测试意图
-driver 内部转换成 beat
-monitor 先采 beat，再重建 packet
-scoreboard 比 packet 内容
-```
-
----
-
-## 18. Driver 发送算法
-
-伪代码：
-
-```text
-for each packet:
-    将 payload 切成 beats
-    for each beat:
-        随机插入 TVALID gap
-        驱动 payload + TVALID
-        while !(TVALID && TREADY):
-            保持全部信号
-        握手后进入下一 beat
-```
-
-### 18.1 最后一拍 keep 计算
-
-```systemverilog
-// 每个 beat 能承载的 byte 数，例如 32-bit TDATA 对应 4 bytes。
-int bytes_per_beat = DATA_WIDTH / 8;
-// remain=0 表示 packet 长度恰好是整拍；否则是最后一拍的有效 byte 数。
-int remain = packet.payload.size() % bytes_per_beat;
-
-if (remain == 0)
-    // 非空且整拍结束时，最后一拍所有 byte lane 都有效。
-    last_keep = '1;
-else
-    // 假设从低 byte lane 开始连续放置有效数据：remain=2 得到 4'b0011。
-    last_keep = (1 << remain) - 1;
-```
-
-空 packet 需要项目明确约定：可以发送 `TKEEP='0, TLAST=1` 的 transfer。
-
-### 18.2 不要把 VALID gap 与 backpressure 混淆
-
-- VALID gap：Transmitter 没有提供 beat。
-- READY gap：Receiver 对已有 beat 施加 backpressure。
-
-验证环境应独立随机化两者。
-
----
-
-## 19. Monitor 重建 packet
-
-### 19.1 只在 fire 时采样
+### 11.1 只在 fire 时采样
 
 ```systemverilog
 // Monitor 不能只看 TVALID；阻塞期间同一个 beat 会保持多个周期。
@@ -716,7 +518,7 @@ if (vif.monitor_cb.TVALID && vif.monitor_cb.TREADY) begin
 end
 ```
 
-### 19.2 单 stream
+### 11.2 单 stream
 
 ```text
 每次 fire：
@@ -725,7 +527,7 @@ end
     若 TLAST=1：发布 packet，清空当前 packet
 ```
 
-### 19.3 多 stream
+### 11.3 多 stream
 
 ```systemverilog
 typedef struct packed {
@@ -743,58 +545,11 @@ packet_by_stream[{TID,TDEST}]
 
 每个 stream 独立累计，遇到该 stream 的 `TLAST` 才结束对应 packet。
 
-### 19.4 不能无条件丢弃 null-only beat
+### 11.4 不能无条件丢弃 null-only beat
 
 如果 `TKEEP='0` 且 `TLAST=1`，它仍可能表示空 packet 或 packet end，monitor 必须保留边界语义。
 
----
-
-## 20. Scoreboard 类型
-
-### 20.1 恒等通路
-
-输入 packet 应与输出 packet 完全一致：
-
-- data byte 内容。
-- byte 顺序。
-- packet 边界。
-- `TID/TDEST`。
-- 约定的 `TUSER`。
-
-### 20.2 Width converter
-
-不能逐 beat 比较，因为输入输出 beat 宽度不同。应先规范化为 byte/packet 表示：
-
-```text
-input beats  -> canonical packet bytes + metadata
-output beats -> canonical packet bytes + metadata
-比较 canonical packet
-```
-
-### 20.3 Packet processor
-
-Reference model 根据 packet 级算法预测输出，例如：
-
-- 加/去 header。
-- CRC。
-- filter。
-- resize。
-- 路由到不同 `TDEST`。
-
-### 20.4 多 stream 顺序
-
-同一 stream 按序比较，不同 stream 可独立队列：
-
-```text
-expected[{id,dest}]
-actual[{id,dest}]
-```
-
----
-
-## 21. SVA 协议断言
-
-### 21.1 TVALID sticky
+### 11.5 TVALID sticky
 
 ```systemverilog
 property p_tvalid_sticky;
@@ -805,7 +560,7 @@ endproperty
 a_tvalid_sticky: assert property (p_tvalid_sticky);
 ```
 
-### 21.2 Payload 稳定
+### 11.6 Payload 稳定
 
 ```systemverilog
 property p_payload_stable;
@@ -818,7 +573,7 @@ endproperty
 a_payload_stable: assert property (p_payload_stable);
 ```
 
-### 21.3 复位时 TVALID 为低
+### 11.7 复位时 TVALID 为低
 
 ```systemverilog
 property p_tvalid_low_in_reset;
@@ -828,7 +583,7 @@ property p_tvalid_low_in_reset;
 endproperty
 ```
 
-### 21.4 非法 keep/strb 组合
+### 11.8 非法 keep/strb 组合
 
 ```systemverilog
 property p_strb_implies_keep;
@@ -840,95 +595,11 @@ endproperty
 
 即任何 `TSTRB=1` 的 byte lane 必须同时 `TKEEP=1`。
 
-### 21.5 packet 内 ID/DEST 稳定
+### 11.9 packet 内 ID/DEST 稳定
 
-这需要 checker 保存 packet active 状态。对于支持多 stream 交织的接口，不能写成“全局从上一个 TLAST 前 TID 必须不变”，因为不同 stream 可以交织。应按 stream context 检查各 packet 的规则。
+checker 需要记录每个 packet 是否仍在进行。
 
----
-
-## 22. 功能覆盖计划
-
-### 22.1 Packet 长度
-
-- 0 byte 空 packet。
-- 1 byte。
-- 恰好 1 beat。
-- 比 1 beat 多 1 byte。
-- 恰好多个完整 beat。
-- 大 packet。
-
-### 22.2 最后一拍 `TKEEP`
-
-- 每种连续有效 byte 数。
-- 稀疏 `TKEEP`，若设计支持。
-- 全 0 keep + TLAST。
-- position byte 组合。
-
-### 22.3 时序
-
-- 无 backpressure，连续满带宽。
-- 单拍 backpressure。
-- 长 backpressure。
-- 在 TLAST beat 上 backpressure。
-- Transmitter 插入 VALID gap。
-- back-to-back packets，无空拍。
-
-### 22.4 多 stream
-
-- 单一 TID/DEST。
-- 多 TID。
-- 多 TDEST。
-- 不同 stream interleaving。
-- 同 stream 多 packet 连续。
-
-### 22.5 Cross
-
-```text
-packet_length x last_keep
-packet_length x backpressure_length
-TLAST_stall x TID
-TID x TDEST
-width_conversion x null_byte_pattern
-```
-
----
-
-## 23. 性能统计
-
-### 23.1 Link utilization
-
-```text
-utilization = transfer_cycles / observed_cycles
-transfer_cycles = count(TVALID && TREADY)
-```
-
-### 23.2 Source starvation
-
-```text
-TVALID=0, TREADY=1
-```
-
-表示下游有能力，但上游没有提供数据。
-
-### 23.3 Backpressure
-
-```text
-TVALID=1, TREADY=0
-```
-
-表示上游有数据，但下游阻塞。
-
-### 23.4 两者都低
-
-```text
-TVALID=0, TREADY=0
-```
-
-仅凭接口波形不能断定是哪一方造成性能问题，需要结合上下游内部状态。
-
----
-
-## 24. 常见错误总表
+如果接口允许多个 stream 交织，就不能用一个全局状态要求 `TID` 始终不变；应按 `{TID,TDEST}` 分别保存每个 stream 的 packet 状态。
 
 | 错误理解/实现 | 正确理解 |
 |---|---|
@@ -947,70 +618,28 @@ TVALID=0, TREADY=0
 
 ---
 
-## 25. 调试波形固定顺序
+## 12. 总结
 
-1. `ARESETn` 释放后 `TVALID` 是否按规则启动。
-2. 只标出 `TVALID && TREADY` 的真实 transfer。
-3. backpressure 期间 payload 是否稳定。
-4. 根据 `TKEEP/TSTRB` 标出 data、position、null byte。
-5. `TLAST` 是否位于真正最后一个已握手 beat。
-6. packet 内 `{TID,TDEST}` 是否符合约定。
-7. `TUSER` 是否与正确 byte/beat 对齐。
-8. 若有 width conversion，packet byte 序列和边界是否保持。
+### 12.1 学习重点排序
 
----
+| 优先级 | 学习内容 |
+|---|---|
+| 🔴 高 | `TVALID/TREADY`、阻塞稳定性、`TKEEP/TSTRB`、`TLAST` |
+| 🟡 中 | packet、`TID/TDEST`、多 stream 顺序、宽度转换 |
+| 🟢 进阶 | `TUSER`、interface、monitor 和协议断言 |
 
-## 26. 练习题
+### 12.2 易错点
 
-### 练习 1
+| 易错理解 | 正确理解 |
+|---|---|
+| `TVALID=1` 就传了一拍 | 必须同时有 `TREADY=1` |
+| 反压期间可以换 `TDATA` | 当前 beat 的全部 payload 必须保持 |
+| `TLAST=1` 就结束 packet | TLAST 所在 beat 握手后才结束 |
+| `TKEEP=0` 的 beat 都能丢 | 若同时有 `TLAST=1`，仍可能携带边界语义 |
+| `TID` 等于 AXI transaction ID | `TID` 表示 stream 身份 |
+| 多 stream 只需一个 packet buffer | 应按 `{TID,TDEST}` 分别保存上下文 |
 
-`TVALID=1, TREADY=0` 连续 10 拍，产生几个 transfer？
-
-答案：0 个。
-
-### 练习 2
-
-`TVALID=1, TREADY=0, TLAST=1`，packet 是否已经结束？
-
-答案：没有。最后 beat 尚未握手。
-
-### 练习 3
-
-32-bit TDATA 发送 6-byte packet，低 lane 优先，最后一拍 `TKEEP` 应是什么？
-
-答案：第一拍 `1111`，第二拍 `0011` 且 `TLAST=1`。
-
-### 练习 4
-
-`TKEEP=1, TSTRB=0` 对应什么 byte？
-
-答案：Position byte。位置必须保留，但 `TDATA` 内容不是有效 data byte。
-
-### 练习 5
-
-两个 stream 的 `{TID,TDEST}` 不同，能否逐 beat 交织？
-
-答案：可以，只要每个 stream 自身顺序和 packet 边界保持。
-
----
-
-## 本章总结
-
-### 知识链
-
-```text
-单向 stream
-    -> TVALID/TREADY 握手
-    -> backpressure 时 payload 稳定
-    -> TDATA 按 byte lane 组织
-    -> TKEEP/TSTRB 定义 byte 类型
-    -> TLAST 定义 packet 边界
-    -> TID/TDEST 区分 stream 和路由
-    -> TUSER 传递项目自定义元数据
-    -> monitor 按 stream 重建 packet
-```
-
-### 最重要的 10 条规则
+### 12.3 最重要的 10 条规则
 
 1. AXI4-Stream 无地址，一套接口只传一个方向。
 2. Transfer 只在 `TVALID && TREADY` 上升沿发生。
