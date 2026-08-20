@@ -17,7 +17,7 @@ SystemVerilog 从 C/C++ 引入了很多过程语句改进：
 | `continue` | 跳过本轮，进入下一轮 | 配合 `if` 使用 |
 | `break` | 终止整个循环 | 配合 `if` 使用 |
 
-### 基本代码示例
+### 3.1.1 基本代码示例
 
 ```systemverilog
 initial begin : example
@@ -40,7 +40,7 @@ initial begin : example
 end : example
 ```
 
-### 文件读取中的应用
+### 3.1.2 文件读取中的应用
 
 ```systemverilog
 initial begin
@@ -80,9 +80,10 @@ end
 **void 函数（Void Function）** 没有返回值、不消耗时间，可被 task 和 function 调用。
 
 ```systemverilog
-function void print_state();
-    $display("@%0t: state = %s", $time, cur_state.name());
+function void print_state();   // [1] void function：不返回值，只做副作用
+    $display("@%0t: state = %s", $time, cur_state.name());  // [2] 打印枚举名
 endfunction
+```
 ```
 
 | 写成 task | 写成 void function |
@@ -200,7 +201,7 @@ endfunction
 | 需要返回多个值 | `output` 或 `ref` |
 | 多线程中希望立即看到变量变化 | `ref` |
 
-### ref 在多线程中的应用
+### 3.4.4 ref 在多线程中的应用
 
 `ref` 参数变化可以被其他线程**立刻**看到，无需等任务结束：
 
@@ -228,7 +229,7 @@ join
 | `output` 参数 | 任务结束后 |
 | `ref` 参数 | 任务内一修改，立即可见 |
 
-### 3.4.4 参数的缺省值
+### 3.4.5 参数的缺省值
 
 ```systemverilog
 function void print_checksum(
@@ -257,7 +258,7 @@ print_checksum(a, , 2);     // a[0:2]（low 用缺省值）
 
 > 📌 用 `-1` 作为缺省值判断"调用时是否指定了该参数"是个好技巧。
 
-### 3.4.5 采用名字进行参数传递
+### 3.4.6 采用名字进行参数传递
 
 ```systemverilog
 task many(input int a = 1, b = 2, c = 3, d = 4);
@@ -278,7 +279,7 @@ end
 | 参数很多 | 名字传参更清晰 |
 | 参数有默认值 | 名字传参更明确 |
 
-### 3.4.6 常见的代码错误 — 参数继承陷阱
+### 3.4.7 常见的代码错误 — 参数继承陷阱
 
 ```systemverilog
 // ❌ 错误：a 和 b 继承了前一个参数的 ref 方向
@@ -382,15 +383,16 @@ end
 | automatic | 每次调用有独立的变量副本 | ✅ |
 
 ### 3.6.2 automatic 的作用
-
 ```systemverilog
-program automatic test;
+program automatic test;   // [1] automatic：task 内变量动态存储
 
     task wait_for_mem(input [31:0] addr, expected_data, output success);
-        while (bus.addr !== addr)
+        while (bus.addr !== addr)   // [2] 等待地址变化到目标值
             @(bus.addr);
-        success = (bus.data == expected_data);
+        success = (bus.data == expected_data);  // [3] 检查数据是否匹配
     endtask
+endprogram
+```
 endprogram
 ```
 
@@ -510,9 +512,9 @@ endmodule
 
 ---
 
-## 本章总结（3.1–3.8）
+## 3.8 本章总结
 
-### 知识链
+### 3.8.1 知识链
 
 ```
 for / break / continue / do-while
@@ -524,7 +526,7 @@ for / break / continue / do-while
             → timeunit / $timeformat / $realtime
 ```
 
-### 关键概念速查表
+### 3.8.2 关键概念速查表
 
 | 概念 | 作用 |
 |------|------|
@@ -539,7 +541,7 @@ for / break / continue / do-while
 | `automatic` | 每次调用独立存储，多线程安全 |
 | `$realtime` | 精确时间，保留小数 |
 
-### 你写的 ch3 代码对照表
+### 3.8.3 你写的 ch3 代码对照表
 
 | 文件 | 对应章节 | 知识点 |
 |------|---------|--------|
@@ -550,7 +552,7 @@ for / break / continue / do-while
 | `5.sv` | 3.6 | `automatic` 动态存储 vs 静态存储 |
 | `6.sv` | 3.7 | `timeunit`/`timeprecision`、`$timeformat`、`$realtime` vs `$time` |
 
-### 最重要的 10 条规则
+### 3.8.4 最重要的 10 条规则
 
 | # | 规则 |
 |---|------|
@@ -565,7 +567,7 @@ for / break / continue / do-while
 | 9 | 不在声明语句中初始化变量，或分开声明和赋值 |
 | 10 | 精确时间用 `$realtime`，别用 `$time` |
 
-### 最容易错的点
+### 3.8.5 最容易错的点
 
 | 易错点 | 正确理解 |
 |--------|---------|

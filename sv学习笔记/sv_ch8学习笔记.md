@@ -684,20 +684,22 @@ endclass
 
 `pure virtual` 表示父类只规定接口，不提供实现，子类必须实现。
 ```systemverilog
-virtual class A;
-    pure virtual function void f();
+virtual class A;                       // [1] 抽象类：不能直接 new
+    pure virtual function void f();    // [2] 纯虚函数：只有声明，子类必须实现
 endclass
+```
 ```
 `A` 不能直接 `new()`。如果某个子类没有实现 `f()`，这个子类也仍然是抽象的，不能实例化。
 
-`extern virtual` 表示方法有实现，只是函数体写在类外面。
 ```systemverilog
 class B;
-    extern virtual function void f();
+    extern virtual function void f();  // [1] extern 声明，实现放类外
 endclass
 
-function void B::f();
+function void B::f();                  // [2] 类外实现（类名::方法名）
     $display("B::f");
+endfunction
+```
 endfunction
 ```
 `B` 可以直接 `new()`，因为 `f()` 有具体实现。
@@ -903,7 +905,7 @@ endclass
 
 ## 8.8 本章总结
 
-### 学习重点排序
+### 8.8.1 学习重点排序
 
 | 优先级 | 必须掌握 |
 |------|----------|
@@ -919,7 +921,7 @@ endclass
 
 ---
 
-### 最重要的 9 条规则
+### 8.8.2 最重要的 9 条规则
 
 | # | 规则 | 说明 |
 |---|------|------|
@@ -935,7 +937,7 @@ endclass
 
 ---
 
-### 最容易错的点
+### 8.8.3 最容易错的点
 
 | 易错点 | 正确理解 |
 |--------|----------|

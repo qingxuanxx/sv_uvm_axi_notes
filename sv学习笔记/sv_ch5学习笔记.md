@@ -6,16 +6,16 @@
 
 ## 5.1 概述（🟡 中）
 
-### 核心概念
+### 5.1.1 核心概念
 
 **面向对象编程（OOP）** 的核心思想是：把数据和操作这些数据的代码封装在一起。
 
 传统 Verilog 中描述一个总线事务，通常会写成多个数组：
 
 ```systemverilog
-bit [31:0] addr_array[100];
+bit [31:0] addr_array[100];   // [1] 方法一：3 个平行数组表示一批事务
 bit [31:0] data_array[100];
-bit [3:0]  cmd_array[100];
+bit [3:0]  cmd_array[100];    // [2] 缺点：数据分散，操作时要同步维护 3 个数组
 ```
 
 | 问题 | 说明 |
@@ -28,15 +28,16 @@ bit [3:0]  cmd_array[100];
 OOP 的做法是把这些信息封装成一个类：
 
 ```systemverilog
-class Transaction;
+class Transaction;                 // [1] 类：把数据 + 操作封装在一起
     bit [31:0] addr;
     bit [31:0] data;
     bit [3:0]  cmd;
 
-    function void display();
+    function void display();       // [2] 类的方法：操作自己的成员
         $display("addr=%h, data=%h", addr, data);
     endfunction
 endclass
+```
 ```
 
 这个类把事务的数据和显示事务的方法放在一起。
@@ -45,7 +46,7 @@ endclass
 
 ## 5.2 考虑名词，而非动词（🟢 低）
 
-### 核心思想
+### 5.2.1 核心思想
 
 传统 testbench 容易围绕"动作"来写：创建事务 → 发送事务 → 接收结果 → 检查结果。OOP 更强调围绕"对象"来组织：Transaction、Generator、Driver、Monitor、Scoreboard。
 
@@ -56,7 +57,7 @@ endclass
 | 代码耦合度高 | 组件边界清晰 |
 | 难复用 | 易复用 |
 
-### 验证平台中的角色
+### 5.2.2 验证平台中的角色
 
 | 组件 | 作用 |
 |------|------|
@@ -64,17 +65,18 @@ endclass
 | Driver | 把 transaction 转换成 DUT 输入信号 |
 | Monitor | 从 DUT 输出信号中采样并还原 transaction |
 | Scoreboard | 比较实际结果和期望结果 |
-
 ```systemverilog
 class Generator;
     Transaction tr;
 
-    function Transaction create();
-        tr = new();
+    function Transaction create();   // [1] 方法返回 Transaction 句柄
+        tr = new();                  // [2] new 创建对象
         tr.addr = 32'h1000;
         tr.data = 32'h55aa;
-        return tr;
+        return tr;                   // [3] 返回句柄
     endfunction
+endclass
+```
 endclass
 ```
 
@@ -84,22 +86,23 @@ Generator 不直接翻转信号，而是创建一个事务对象。
 
 ## 5.3 编写第一个类 Class（🔴 高）
 
-### 类的基本结构
-
-类（Class）可以同时包含数据成员、函数 function、任务 task。
+### 5.3.1 类的基本结构
 
 ```systemverilog
 class Transaction;
     bit [31:0] addr, crc, data[8];
 
-    function void display();
+    function void display();               // [1] 打印方法
         $display("Transaction addr=%h", addr);
     endfunction : display
 
-    function void calc_crc();
+    function void calc_crc();              // [2] 计算 CRC（遍历 data 数组）
         crc = addr;
         foreach (data[i])
-            crc ^= data[i];
+            crc ^= data[i];                // [3] 逐个异或
+    endfunction : calc_crc
+endclass : Transaction
+```
     endfunction : calc_crc
 endclass : Transaction
 ```
@@ -112,7 +115,7 @@ endclass : Transaction
 | `calc_crc()` | 操作类中数据的方法 |
 | `endclass : Transaction` | 类结束，加标签便于阅读 |
 
-### 命名习惯
+### 5.3.2 命名习惯
 
 | 类型 | 推荐命名 |
 |------|---------|
@@ -125,7 +128,7 @@ endclass : Transaction
 
 ## 5.4 在哪里定义类（🟢 低）
 
-### 类可以定义的位置
+### 5.4.1 类可以定义的位置
 
 | 位置 | 是否可行 | 说明 |
 |------|---------|------|
@@ -133,11 +136,8 @@ endclass : Transaction
 | `module` 内 | 可以 | 不推荐作为主要风格 |
 | `package` 内 | 推荐 | 适合工程化管理 |
 | 文件顶层 | 可以 | 适合简单练习 |
-
-### 推荐写法：放在 package 中
-
 ```systemverilog
-package trans_pkg;
+package trans_pkg;                // [1] package：把类打包，供多处 import
     class Transaction;
         bit [31:0] addr;
         bit [31:0] data;
@@ -145,8 +145,12 @@ package trans_pkg;
 endpackage
 
 program automatic tb;
-    import trans_pkg::*;
+    import trans_pkg::*;         // [2] import 后直接用 Transaction
     initial begin
+        Transaction tr = new();
+    end
+endprogram
+```
         Transaction tr = new();
     end
 endprogram
@@ -167,7 +171,7 @@ endprogram
 | 方法 | Method | 类中的 task/function | task/function |
 | 原型 | Prototype | 方法声明头 | 函数声明 |
 
-### 类、对象、句柄的关系
+### 5.5.1 类、对象、句柄的关系
 
 ```systemverilog
 Transaction tr;  // tr 是句柄（初始为 null）
@@ -285,7 +289,7 @@ initial begin
 end
 ```
 
-### 测试平台中建议保持变量公有
+### 5.8.1 测试平台中建议保持变量公有
 
 传统 OOP 倾向于通过 `get()`/`set()` 方法访问数据，但验证平台需要：
 
@@ -350,14 +354,15 @@ Transaction::display_count();  // 无需创建对象即可调用
 
 ---
 
-## 5.10 类的方法（🟡 中）
-
-类中的 `task` 或 `function` 称为**方法（Method）**，可以直接访问类成员。
-
 ```systemverilog
 class Transaction;
     bit [31:0] addr, crc, data[8];
 
+    function void display();       // [1] 类方法：访问自身成员（this 隐含）
+        $display("addr=%h crc=%h", addr, crc);
+    endfunction
+endclass
+```
     function void display();
         $display("addr=%h crc=%h", addr, crc);
     endfunction
@@ -398,7 +403,7 @@ endfunction
 
 ## 5.12 作用域规则（🟡 中）
 
-### 名字查找规则
+### 5.12.1 名字查找规则
 
 ```text
 当前作用域 → 上一级作用域 → ... → $root
@@ -417,7 +422,7 @@ program automatic p;
 endprogram
 ```
 
-### 常见陷阱：循环变量未声明
+### 5.12.3 常见陷阱：循环变量未声明
 
 ```systemverilog
 program test;
@@ -441,7 +446,7 @@ for (int i = 0; i < data.size(); i++)  // 局部声明
 
 > 📌 类建议放进 `package`，防止意外访问程序级变量。
 
-### 5.12.1 `this` 是什么
+### 5.12.2 `this` 是什么
 
 当成员变量和参数同名时，用 `this` 区分：
 
@@ -646,7 +651,7 @@ class Transaction;
 endclass
 ```
 
-### 三种操作对比
+### 5.15.3 三种操作对比
 
 | 操作 | 写法 | 创建新顶层对象？ | 创建新内部对象？ |
 |------|------|:---:|:---:|
@@ -696,15 +701,15 @@ endclass
 
 ---
 
-## 本章总结（5.1–5.16）
+## 5.17 本章总结
 
-### 核心知识链
+### 5.17.1 核心知识链
 
 ```
 class → handle → new() → object → method → static/this/scope → copy → pack/unpack → public/protected/local
 ```
 
-### 你写的 ch5 代码对照表
+### 5.17.2 你写的 ch5 代码对照表
 
 | 文件 | 对应章节 | 知识点 |
 |------|---------|--------|
@@ -718,7 +723,7 @@ class → handle → new() → object → method → static/this/scope → copy 
 | `8.sv` | 5.14.2, 5.7 | `ref` 传递句柄、垃圾回收 |
 | `9.sv` | 5.15.4 | `packed struct` 中介、`{>>{}}` 打包解包 |
 
-### 最重要的 10 个结论
+### 5.17.3 最重要的 10 个结论
 
 | # | 结论 |
 |---|------|
@@ -733,7 +738,7 @@ class → handle → new() → object → method → static/this/scope → copy 
 | 9 | 修改外部句柄本身需要 `ref` |
 | 10 | 有内部对象句柄时，需要自己写深拷贝 `copy()` |
 
-### 最容易错的点
+### 5.17.4 最容易错的点
 
 | 易错点 | 正确理解 |
 |--------|---------|

@@ -478,7 +478,7 @@ class Consumer {
 
 ---
 
-## 综合示例：event + semaphore + mailbox（🟡 中）
+## 7.7 综合示例：event + semaphore + mailbox（🟡 中）
 
 ```systemverilog
 program automatic tb;
@@ -487,41 +487,41 @@ program automatic tb;
         rand bit [7:0] data;
     endclass
 
-    mailbox mbx;
-    semaphore bus_sem;
-    event gen_done;
+    mailbox mbx;          // [1] 信箱：generator → driver 传事务
+    semaphore bus_sem;    // [2] 旗语：总线互斥（1 把钥匙）
+    event gen_done;       // [3] 事件：generator 完成通知
 
-    task generator(int n);
+    task generator(int n);   // [4] 生产者：产生 n 个事务
         Transaction tr;
         repeat (n) begin
             tr = new();
             assert(tr.randomize());
             $display("@%0t GEN put addr=%0h data=%0h", $time, tr.addr, tr.data);
-            mbx.put(tr);
+            mbx.put(tr);     // [5] 放进信箱（driver 会来取）
         end
-        -> gen_done;
+        -> gen_done;         // [6] 触发事件：告诉主线程"我发完了"
     endtask
 
-    task driver(int n);
+    task driver(int n);      // [7] 消费者：取事务并"驱动"
         Transaction tr;
         repeat (n) begin
-            mbx.get(tr);
-            bus_sem.get(1);
+            mbx.get(tr);     // [8] 从信箱取（没货就阻塞等）
+            bus_sem.get(1);  // [9] 拿总线钥匙（互斥，防止两个 driver 同时用总线）
             $display("@%0t DRV drive addr=%0h data=%0h", $time, tr.addr, tr.data);
             #10;
-            bus_sem.put(1);
+            bus_sem.put(1);  // [10] 用完还钥匙
         end
     endtask
 
     initial begin
         mbx = new();
-        bus_sem = new(1);
+        bus_sem = new(1);    // [11] 初始化：1 把钥匙
         fork
-            generator(5);
-            driver(5);
-        join_none
-        wait(gen_done.triggered());
-        wait fork;
+            generator(5);    // [12] 并发启动：生产 5 个
+            driver(5);       // [13] 并发启动：消费 5 个
+        join_none            // [14] 不等待两个线程
+        wait(gen_done.triggered());  // [15] 等生产者发完
+        wait fork;           // [16] 等所有派生线程结束
         $display("@%0t all threads finished", $time);
     end
 endprogram
@@ -537,9 +537,9 @@ endprogram
 
 ---
 
-## 本章总结（7.1–7.6）
+## 7.8 本章总结
 
-### 记忆口诀
+### 7.8.1 记忆口诀
 
 ```
 fork 开线程：
@@ -564,7 +564,7 @@ mailbox 传事务：
     put 放，get 取，空则 get 等，满则 put 等
 ```
 
-### 学习重点排序
+### 7.8.2 学习重点排序
 
 | 优先级 | 必须掌握内容 |
 |:---:|------|
@@ -575,7 +575,7 @@ mailbox 传事务：
 | 🟡 | `semaphore` 用于互斥访问共享资源 |
 | 🟡 | `mailbox` 用于线程间传递 transaction |
 
-### 最容易错的 5 个点
+### 7.8.3 最容易错的 5 个点
 
 | # | 易错点 | 正确做法 |
 |---|--------|---------|

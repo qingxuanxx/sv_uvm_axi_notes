@@ -228,7 +228,7 @@ initial begin
 end
 ```
 
-### 使用下标串联代替方法
+### 2.4.1 使用下标串联代替方法
 
 ```systemverilog
 q = {q[0], j, q[1:$]};     // 在 1 前插入 j
@@ -254,7 +254,7 @@ q = {};                    // 清空
 
 用于稀疏存储。只在被写入时才分配空间，不对整个地址范围分配。
 
-### 以 bit 向量为索引
+### 2.5.1 以 bit 向量为索引
 
 ```systemverilog
 bit [63:0] assoc[bit [63:0]], idx = 1;
@@ -278,23 +278,24 @@ initial begin
 end
 ```
 
-### 以字符串为索引
+### 2.5.2 以字符串为索引
 
 ```systemverilog
-int switch[string];
+int switch[string];   // [1] 关联数组：以字符串为索引
 
 initial begin
-    switch["min_address"] = 42;
+    switch["min_address"] = 42;      // [2] 插入元素（key 不存在时自动创建）
     switch["max_address"] = 1492;
 
-    if (switch.exists("max_address"))
+    if (switch.exists("max_address"))   // [3] exists 检查 key 是否存在
         $display("max = %0d", switch["max_address"]);
     else
         $display("max = 1000");
 
-    foreach (switch[s])
+    foreach (switch[s])                // [4] foreach 遍历：s 是 key
         $display("switch['%s'] = %0d", s, switch[s]);
 end
+```
 ```
 
 | 方法 | 说明 |
@@ -362,7 +363,7 @@ tq = d.find_last_index() with (item == 4); // {5}
 | 默认名 `item` | 代表数组中当前遍历的元素 |
 | 自定义名 | `d.find(x) with (x > 3)` |
 
-### 带条件的 sum
+### 2.7.3 带条件的 sum
 
 ```systemverilog
 count = d.sum() with (item > 7);             // 2：计数 >7
@@ -370,7 +371,7 @@ total = d.sum() with ((item > 7) * item);     // 17 = 9+8
 total = d.sum() with (item < 8 ? item : 0);   // 12 = 1+3+4+4
 ```
 
-### 2.7.3 排序方法
+### 2.7.4 排序方法
 
 ```systemverilog
 int d[] = '{9, 1, 8, 3, 4, 4};
@@ -383,7 +384,7 @@ d.shuffle();    // 随机打乱
 
 > 📌 定位方法创建新队列返回；排序方法修改原数组。`reverse` 和 `shuffle` 不能带 `with`。
 
-### 2.7.4 数组方法建立记分板
+### 2.7.5 数组方法建立记分板
 
 ```systemverilog
 typedef struct packed {
@@ -698,9 +699,9 @@ $displayb(2'(one) + one);       // 1+1=2
 
 ---
 
-## 本章总结
+## 2.16 本章总结
 
-### 你写的 ch2 代码对照表
+### 2.16.1 你写的 ch2 代码对照表
 
 | 文件 | 对应章节 | 知识点 |
 |------|---------|--------|
@@ -713,7 +714,7 @@ $displayb(2'(one) + one);       // 1+1=2
 | `7.sv` | 2.10, 2.11 | 结构体、流操作符 `{>>{}}` 大端打包、`{<<{}}` 小端打包 |
 | `8.sv` | 2.12 | 枚举类型、`.next()`/`.prev()`/`.first()`、环形遍历 |
 
-### 数据类型速查
+### 2.16.2 数据类型速查
 
 | 需求 | 推荐 | 需求 | 推荐 |
 |------|------|------|------|
@@ -723,7 +724,7 @@ $displayb(2'(one) + one);       // 1+1=2
 | 频繁增删 | 队列 | 稀疏存储 | 关联数组 |
 | 字段组合 | `struct` | 状态码 | `enum` |
 
-### 最重要的 10 条规则
+### 2.16.3 最重要的 10 条规则
 
 1. 默认用 `logic`，多驱动用 `wire`
 2. `byte` 有符号（-128~127），0~255 用 `bit [7:0]`

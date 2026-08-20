@@ -10,7 +10,7 @@
 
 ## 4.1 将测试平台和设计分开（🟡 中）
 
-### 核心思想
+### 4.1.1 核心思想
 
 | 部分 | 作用 |
 |------|------|
@@ -18,7 +18,7 @@
 | Testbench | 产生激励、检查输出、模拟外部环境 |
 | Top | 例化 DUT、testbench、interface、clock |
 
-### 传统端口连接的问题
+### 4.1.2 传统端口连接的问题
 
 ```systemverilog
 // DUT
@@ -161,13 +161,14 @@ module monitor(arb_if.MONITOR arbif); // MONITOR 视角
 ### 4.2.5 接口监视模块
 
 ```systemverilog
-module monitor(arb_if.MONITOR arbif);
-    always @(posedge arbif.request[0]) begin
+module monitor(arb_if.MONITOR arbif);   // [1] 用 modport 指定只读视角
+    always @(posedge arbif.request[0]) begin   // [2] 监测 request 拉高
         $display("@%0t request[0] asserted", $time);
-        @(posedge arbif.grant[0]);
+        @(posedge arbif.grant[0]);             // [3] 再等 grant 拉高
         $display("@%0t grant[0] asserted", $time);
     end
 endmodule
+```
 ```
 
 ### 4.2.6 接口的优缺点
@@ -267,15 +268,16 @@ SystemVerilog 一个时间片分为：
 | Postponed | 时间片末尾采样 | 只读（$monitor、$strobe） |
 
 > 📌 program 块在 Reactive 区域执行，DUT 在 Active 区域执行，天然分离，消除竞争。
-
 ```systemverilog
-program automatic test(arb_if.TEST bus);
+program automatic test(arb_if.TEST bus);   // [1] program 块：reactive 区执行
     initial begin
-        bus.cb.request <= 2'b01;
-        repeat (2) @bus.cb;
-        if (bus.cb.grant != 2'b01)
+        bus.cb.request <= 2'b01;   // [2] 通过 clocking block 驱动（<= 同步于时钟沿）
+        repeat (2) @bus.cb;        // [3] 等 2 个时钟沿
+        if (bus.cb.grant != 2'b01) // [4] 采样检查 grant
             $display("FAIL");
     end
+endprogram
+```
 endprogram
 ```
 
@@ -403,29 +405,31 @@ endprogram
 
 ## 4.5 将这些模块都连接起来（🟡 中）
 
-### 4.5.1 top 模块的职责
-
 ```systemverilog
 module top;
     bit clk;
-    always #5 clk = ~clk;
+    always #5 clk = ~clk;    // [1] 产生时钟（周期 10）
 
-    arb_if arbif(clk);
-    arb     u_arb(arbif);
-    test    u_tb (arbif);
+    arb_if arbif(clk);       // [2] 例化 interface
+    arb     u_arb(arbif);    // [3] 连 DUT
+    test    u_tb (arbif);    // [4] 连 testbench（program）
+    monitor u_mon(arbif);    // [5] 连 monitor
+endmodule
+```
     monitor u_mon(arbif);
 endmodule
 ```
 
 ### 4.5.2 隐式端口连接 `.*`
-
-如果端口名和当前作用域中的信号名一致，可用 `.*` 自动匹配：
-
 ```systemverilog
 module top;
     bit clk;
     always #5 clk = ~clk;
-    arb_if arbif(.*);
+    arb_if arbif(.*);   // [1] .* 隐式连接：同名信号自动连上
+    arb    u_arb(.*);
+    test   u_tb (.*);
+endmodule
+```
     arb    u_arb(.*);
     test   u_tb (.*);
 endmodule
@@ -441,13 +445,9 @@ endmodule
 
 ## 4.6 顶层作用域（🟢 低）
 
-### 4.6.1 $unit 和顶层作用域
-
-SystemVerilog 可在 module/program/interface/package 之外定义 parameter、const、typedef、function/task：
-
 ```systemverilog
 `timescale 1ns/1ns
-parameter int TIMEOUT = 1_000_000;
+parameter int TIMEOUT = 1_000_000;      // [1] $unit 作用域参数：所有模块可见
 const string timeout_msg = "ERROR: timeout";
 
 module top;
@@ -456,7 +456,12 @@ endmodule
 
 program automatic test;
     initial begin
-        #TIMEOUT;
+        #TIMEOUT;                        // [2] 用 $unit 参数做延时
+        $display("%s", timeout_msg);     // [3] 用 $unit 字符串
+        $finish;
+    end
+endprogram
+```
         $display("%s", timeout_msg);
         $finish;
     end
@@ -643,9 +648,9 @@ endprogram
 
 ---
 
-## 本章总结（4.1–4.11，跳过 4.9）
+## 4.12 本章总结
 
-### 知识链
+### 4.12.1 知识链
 
 ```
 DUT 与 Testbench 分离
@@ -658,7 +663,7 @@ DUT 与 Testbench 分离
               → final block 做结束总结
 ```
 
-### 关键概念速查
+### 4.12.2 关键概念速查
 
 | 概念 | 英文 | 作用 |
 |------|------|------|
@@ -672,7 +677,7 @@ DUT 与 Testbench 分离
 | 引用端口 | ref | 变量引用式端口 |
 | final 块 | final block | 仿真结束前执行总结代码 |
 
-### 你写的 ch4 代码对照表
+### 4.12.3 你写的 ch4 代码对照表
 
 | 文件 | 对应章节 | 知识点 |
 |------|---------|--------|
@@ -685,7 +690,7 @@ DUT 与 Testbench 分离
 | `7.sv` | 4.8 | SVA 并发断言、`property`/`|->`/`disable iff` |
 | `8.sv` | 4.11 | `final` 块、`$urandom_range`、program 自动结束 |
 
-### 最重要的 10 条规则
+### 4.12.4 最重要的 10 条规则
 
 | # | 规则 |
 |---|------|
@@ -700,7 +705,7 @@ DUT 与 Testbench 分离
 | 9 | 使用 `$root` 绝对路径避免跨模块引用歧义 |
 | 10 | `final` 块用于打印总结报告，保证一定会执行 |
 
-### 最容易错的点
+### 4.12.5 最容易错的点
 
 | 易错点 | 正确理解 |
 |--------|---------|

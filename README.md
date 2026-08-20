@@ -83,4 +83,4 @@ sv_uvm_axi_notes/
 - ARM AMBA 3 APB Protocol（IHI 0024）：https://developer.arm.com/documentation/ihi0024
 - ARM AMBA AHB Protocol Specification（IHI 0033）：https://developer.arm.com/documentation/ihi0033
 
-> 最后更新：2026-08-19
+> 最后更新：2026-08-20

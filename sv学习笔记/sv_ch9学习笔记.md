@@ -74,16 +74,17 @@ q_l <= !d;
 
 正确写法应该显式写出复位分支。
 ```systemverilog
-always @(posedge clk or negedge reset_l) begin
-    if (!reset_l) begin
+always @(posedge clk or negedge reset_l) begin   // [1] 异步复位 D 触发器
+    if (!reset_l) begin                          // [2] 复位：q=0, q_l=1
         q   <= 1'b0;
         q_l <= 1'b1;
     end
-    else begin
+    else begin                                   // [3] 正常：q 跟随 d
         q   <= d;
         q_l <= !d;
     end
 end
+```
 ```
 也就是说，代码覆盖率可能只看到 `q <= d` 和 `q_l <= !d` 这些语句被执行过，却看不出“复位后进入已知状态”这个设计意图根本没有实现。
 
@@ -147,18 +148,19 @@ end
 | 覆盖所有计数值 | 覆盖 0、1、半满、满、满到空 |
 | 覆盖 32 位地址每个值 | 覆盖 memory 区、IO 区、边界地址 |
 
-例如 FIFO 覆盖模型可以关注 `count` 的关键状态，而不是覆盖所有指针组合。
 ```systemverilog
-covergroup FifoCov;
-    coverpoint count {
-        bins empty      = {0};
+covergroup FifoCov;                       // [1] 覆盖组：统计 FIFO 状态命中情况
+    coverpoint count {                    // [2] coverpoint：对 count 采样分 bin
+        bins empty      = {0};            // [3] bin：每个值/区间一个"桶"
         bins one_entry  = {1};
         bins half       = {[DEPTH/2-1 : DEPTH/2+1]};
         bins full       = {DEPTH};
     }
 
-    coverpoint empty;
+    coverpoint empty;                     // [4] 也可直接采样信号
     coverpoint full;
+endgroup
+```
 endgroup
 ```
 这个覆盖模型能回答“FIFO 是否测到空、满、半满等关键状态”，比统计所有 `rd_ptr`/`wr_ptr` 组合更有意义。
@@ -221,15 +223,16 @@ endgroup
 | 验证计划明确列出的功能点 | 没人会看的大范围数值 |
 | 边界条件、错误模式、协议组合 | 每个随机变量的所有可能取值 |
 | 会指导下一步测试修改的点 | 只为了让报告看起来很多的点 |
-
-例如 32 位地址不应该直接覆盖每个可能值，而应该按设计规格划分区域。
 ```systemverilog
 covergroup AddrCov;
     coverpoint addr {
-        bins boot_rom = {[32'h0000_0000 : 32'h0000_FFFF]};
+        bins boot_rom = {[32'h0000_0000 : 32'h0000_FFFF]};  // [1] 地址区间分 bin
         bins sram     = {[32'h1000_0000 : 32'h1000_FFFF]};
         bins io       = {[32'h2000_0000 : 32'h2000_FFFF]};
-        bins boundary = {32'h1000_0000, 32'h1000_FFFF};
+        bins boundary = {32'h1000_0000, 32'h1000_FFFF};     // [2] 单独列出边界值
+    }
+endgroup
+```
     }
 endgroup
 ```
@@ -243,24 +246,25 @@ endgroup
 | `0x0000_0000` - `0x0000_FFFF` | boot ROM | 普通访问、首地址、末地址 |
 | `0x1000_0000` - `0x1000_FFFF` | SRAM | 读写访问、对齐/非对齐边界 |
 | `0x2000_0000` - `0x2000_0FFF` | 外设寄存器 | 合法寄存器地址 |
-| 其他地址 | illegal region | 错误响应或访问拒绝 |
-
-可以把合法区域和非法区域都放进覆盖模型。
 ```systemverilog
 covergroup BusAddrCov;
     coverpoint addr {
-        bins boot_rom_start = {32'h0000_0000};
+        bins boot_rom_start = {32'h0000_0000};      // [1] 起始地址单独 bin
         bins boot_rom_body  = {[32'h0000_0004 : 32'h0000_FFFB]};
-        bins boot_rom_end   = {32'h0000_FFFF};
+        bins boot_rom_end   = {32'h0000_FFFF};      // [2] 结束地址单独 bin
 
         bins sram_start     = {32'h1000_0000};
         bins sram_body      = {[32'h1000_0004 : 32'h1000_FFFB]};
         bins sram_end       = {32'h1000_FFFF};
 
         bins io_regs        = {[32'h2000_0000 : 32'h2000_0FFF]};
-        bins illegal        = default;
+        bins illegal        = default;              // [3] default：未列出的值
     }
 
+    coverpoint write;
+    cross addr, write;                              // [4] cross：组合覆盖率
+endgroup
+```
     coverpoint write;
     cross addr, write;
 endgroup
@@ -1302,7 +1306,7 @@ end
 
 ## 9.11 本章总结
 
-### 学习重点排序
+### 9.11.1 学习重点排序
 
 | 优先级 | 必须掌握 |
 |------|----------|
@@ -1318,7 +1322,7 @@ end
 
 ---
 
-### 最重要的 10 条规则
+### 9.11.2 最重要的 10 条规则
 
 | # | 规则 | 说明 |
 |---|------|------|
@@ -1335,7 +1339,7 @@ end
 
 ---
 
-### 最容易错的点
+### 9.11.3 最容易错的点
 
 | 易错点 | 正确理解 |
 |--------|----------|
