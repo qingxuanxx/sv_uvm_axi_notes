@@ -88,6 +88,7 @@ uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_
 **题目来源**
 
 - 合见工软 · 数字IC验证 · 校招 · 一面（config_db 完成 set 后，若源变量发生变化，get 到的值是否同步更新）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q58、Q59（对应题目：uvm_config_db 是什么、用来做什么；get 和 set 方法怎么用）
 
 **考点**
 
@@ -154,6 +155,7 @@ uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_
 - 豪威科技 · 数字IC验证 · 校招 · 一面（config_db 四个参数含义）
 - 通用 · 数字IC验证 · 实习 · 基础面经（config_db 机制）
 - 某TPU · 数字IC验证 · 校招 · 面经（config_db 核心作用与各参数含义）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q59（对应题目：uvm_config_db 的 get 和 set 方法怎么用——四参数含义）
 
 **考点**
 
@@ -184,6 +186,7 @@ get 时也是四个参数：当前组件、空串（表示自己）、字段名�
 **题目来源**
 
 - 燧原科技 · 数字IC验证 · 校招 · AI方向（描述 UVM 的树形结构）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q65-Q66（对应题目：uvm_root 是什么；uvm_test 的父类是谁）
 
 **考点**
 
@@ -208,6 +211,7 @@ UVM 用一棵**组件树**管理整个验证平台，**真正的根是 uvm_top�
 **题目来源**
 
 - 某TPU · 数字IC验证 · 校招 · 面经（多层级组件对同一变量执行 set 操作时的生效规则）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q60（对应题目：低层组件能把句柄传给高层组件吗——配置流向）
 
 **考点**
 
@@ -258,6 +262,7 @@ config_db 的字段名支持**通配符前缀匹配**。如果 set 时字段名�
 **题目来源**
 
 - 合见工软 · 数字IC验证 · 校招 · 一面（config_db 中 set/get 操作的层级匹配规则）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q59（对应题目：uvm_config_db 的 get 和 set 方法怎么用——参数匹配）
 
 **考点**
 
@@ -284,6 +289,7 @@ set 和 get 要能对上，需要**四个条件同时满足**，缺一个 get �
 **题目来源**
 
 - 乐鑫科技 · 数字IC验证 · 校招 · 笔试（uvm_component 生命周期）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q54、Q55（对应题目：什么是 phasing；UVM 组件有哪些 phase）
 
 **考点**
 
@@ -316,6 +322,7 @@ component 的生命周期由 **UVM 的 phase 机制**管理，分**构建、运�
 - 某TPU公司 · 数字IC验证 · 校招 · 面经（对 TLM 端口 port、export、import 的理解）
 - 平头哥 · 数字IC设计验证 · 实习 · 一面（对 TLM 端口的了解与详细介绍）
 - 通用 · 数字IC验证 · 实习 · 基础面经（TLM 通信：port / export / imp / analysis_port）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q4（对应题目：什么是 TLM port 和 export）
 
 **考点**
 
@@ -347,6 +354,7 @@ TLM 是事务级建模，让组件之间通过标准端口交换 transaction，�
 
 - 平头哥 · 数字IC验证 · 校招 · 一面（验证环境中使用 tlm_fifo 的必要性）
 - 小米 · 处理器验证 · 校招（是否接触过 TLM 通信——开放题，可借此展开）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q5、Q8（对应题目：什么是 TLM FIFO；Analysis port/FIFO 与 TLM port/FIFO 的区别）
 
 **考点**
 
@@ -380,6 +388,7 @@ tlm_fifo 本质是组件之间的"中间仓库"：发送方把 transaction 存�
 
 - 中兴通讯 · 数字IC验证 · 校招 · 领军计划（耗时与不耗时 phase 的区分）
 - 海光 · 数字IC验证 · 校招 · NoC方向（UVM 核心 phase 的分类与简要介绍）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q55（对应题目：UVM 组件有哪些 phase；run_phase 有哪些子 phase）
 
 **考点**
 
@@ -412,6 +421,7 @@ UVM 的 phase 分两大类，分水岭是**能不能耗仿真时间**：
 - 通用 · 数字IC验证 · 实习 · 基础面经（phase 机制：各 phase 执行顺序）
 - 字节跳动 · 数字IC验证 · 实习 · 高频题（run_test 开始执行的是哪个 phase、UVM 中 phase 的完整分类与分组）
 - 中兴通讯 · 数字IC验证 · 校招 · 领军计划（UVM Phase 机制的总体执行顺序）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q55（对应题目：UVM 组件有哪些 phase——三组执行顺序）
 
 **考点**
 
@@ -439,6 +449,7 @@ UVM 的 phase 分两大类，分水岭是**能不能耗仿真时间**：
 - 芯动科技 · 数字IC验证 · 校招（run_phase 与 main_phase 的区别）
 - 小鹏汽车 · SOC验证 · 校招（区别；main_phase 写了 raise_objection 而 run_phase 没写，run_phase 能否正常运行）
 - 某TPU公司 · 数字IC验证 · 校招（两者关系；main_phase 里 raise/drop objection 时 run_phase 是否继续执行）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q55（对应题目：run_phase 的 12 个子 phase，含 main）
 
 **考点**
 
@@ -466,7 +477,7 @@ UVM 的 phase 分两大类，分水岭是**能不能耗仿真时间**：
 
 **题目来源**
 
-- 面试书《Cracking Digital VLSI Verification Interview》· 验证方法学章（build_phase 在组件层次中自顶向下执行的原因）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q56（对应题目：为什么 build_phase 在组件层次中自顶向下执行）
 - 豪威科技 · 数字IC验证 · 校招 · 一面（build_phase / main_phase / configure_phase 中 AXI VIP 和 APB VIP 的配置——应用型）
 
 **考点**
@@ -526,7 +537,7 @@ build_phase 自顶向下是**因果必然**，不是约定：phase 调度器调�
 
 **题目来源**
 
-- 面试书《Cracking Digital VLSI Verification Interview》· 验证方法学章（objection 是什么、有什么用——五星考点）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q52（对应题目：什么是 objection？有什么用？）
 - 小鹏汽车 · SOC验证 · 校招（main_phase 写了 raise_objection 而 run_phase 没写，run_phase 能否正常运行）
 - 某TPU公司 · 数字IC验证 · 校招（main_phase 里 raise/drop objection 时 run_phase 是否继续执行）
 
@@ -563,6 +574,7 @@ objection 是 UVM 用来**控制 task phase 何时结束**的机制，本质是�
 
 - 平头哥 · 数字IC验证 · 校招 · 一面（凉经）（seq.start() 与 start_item...end_item 的差异）
 - 通用 · 数字IC验证 · 实习 · 面试题汇总（UVM 中 sequence 的启动机制）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q20、Q23（对应题目：运行一个 sequence 需要哪些步骤；start 是阻塞还是非阻塞）
 
 **考点**
 
@@ -593,6 +605,7 @@ objection 是 UVM 用来**控制 task phase 何时结束**的机制，本质是�
 - 泰凌微 · 数字IC验证 · 校招 · 一面（driver 向 sequence 传递 item 的方式）
 - 燧原科技 · 数字IC验证 · 校招 · AI方向（sequence、driver、sequencer 三者工作交互逻辑）
 - 某公司 · 数字IC验证 · 校招 · 一面（sequencer 与 driver 交互逻辑）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q21（对应题目：sequencer 与 driver 之间的协议握手是怎样的）
 
 **考点**
 
@@ -621,6 +634,7 @@ objection 是 UVM 用来**控制 task phase 何时结束**的机制，本质是�
 **题目来源**
 
 - 泰凌微 · 数字IC验证 · 校招 · 一面（pre_body/body/post_body 执行顺序是 sequence 生命周期考点）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q22（对应题目：pre_body 和 post_body 是什么？它们总会被调用吗）
 
 **考点**
 
@@ -651,6 +665,7 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 - 平头哥 · 数字IC验证 · 校招 · 一面（凉经）（p_sqr 与 m_sqr 的区别）
 - 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（m sequencer 与 p sequencer 的区别；p sequencer 的定义与用途）
 - 某TPU公司 · 数字IC验证 · 校招（m_sequencer 与 p_sequencer 的关系）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q30-Q31（对应题目：m_sequencer 与 p_sequencer 是什么？有何区别）
 
 **考点**
 
@@ -675,6 +690,7 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 **题目来源**
 
 - 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（使用 uvm_do 宏时 sequence 是否会出现阻塞）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q23（对应题目：start 是阻塞还是非阻塞）
 
 **考点**
 
@@ -731,6 +747,7 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 - 合见工软 · 数字IC验证 · 校招 · 一面（virtual sequence 与物理接口的连接方法）
 - 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（virtual sequencer 与 virtual sequence 的用法）
 - 兆易创新 · 数字IC验证 · 校招（virtual sequence 内激励在随机化时如何同步）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q43（对应题目：什么是 virtual sequence？有什么好处）
 
 **考点**
 
@@ -757,6 +774,7 @@ virtual sequence 是**自己不产生激励的 sequence**——body 里启动多
 **题目来源**
 
 - 汇顶科技 · 数字IC验证 · 校招 · 一面（sequence 获取组件 config 的方式）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q58、Q59（对应题目：uvm_config_db 是什么；get 和 set 方法怎么用）
 
 **考点**
 
@@ -783,6 +801,7 @@ sequence 是 uvm_object，不在组件树上、没有自己的路径，而 confi
 **题目来源**
 
 - 字节跳动 · 数字IC验证 · 校招 · 一面（driver 向 sequence 返回 rsp 的方式，`get_rsp` 相关机制）
+- 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q29、Q37（对应题目：多个 sequence 时如何保证响应送回正确的 sequence；item_done 带参数与不带参数的区别）
 
 **考点**
 
