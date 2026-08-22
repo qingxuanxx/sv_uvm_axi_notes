@@ -28,8 +28,7 @@ sv_uvm_axi_notes/
 │   ├── sv_ch7学习笔记.md    # 第7章：线程以及线程间的通信
 │   ├── sv_ch8学习笔记.md    # 第8章：面向对象编程的高级技巧
 │   ├── sv_ch9学习笔记.md    # 第9章：功能覆盖率
-│   ├── sv_八股.md           # SV 八股（面试常考点积累）
-│   └── sv_语法.md           # SV 语法速查
+│   └── sv_八股.md           # SV 八股（面试常考点积累）
 ├── uvm学习笔记/        # UVM 实战学习笔记
 │   ├── uvm_ch1学习笔记.md   # 第1章：与 UVM 的第一次接触
 │   ├── uvm_ch2学习笔记.md   # 第2章：一个简单的 UVM 验证平台
@@ -40,8 +39,7 @@ sv_uvm_axi_notes/
 │   ├── uvm_ch7学习笔记.md   # 第7章：UVM 中的寄存器模型
 │   ├── uvm_ch8学习笔记.md   # 第8章：UVM 中的 factory 机制
 │   ├── uvm_ch9学习笔记.md   # 第9章：UVM 中代码的可重用性
-│   ├── uvm_八股.md          # UVM 八股（面试常考点积累）
-│   └── uvm_语法.md          # UVM 常用 API 与宏语法速查
+│   └── uvm_八股.md          # UVM 八股（面试常考点积累）
 ├── axi学习笔记/        # AMBA 总线协议学习笔记
 │   ├── apb学习笔记.md       # APB 协议
 │   ├── ahb学习笔记.md       # AHB 协议
