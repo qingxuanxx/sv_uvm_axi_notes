@@ -17,15 +17,11 @@ factory 主要提供两项能力：
 1. 根据类型包装器或字符串创建对象。
 2. 创建前查询 override 记录，决定最终实例类型。
 
-```text
-source code requests base_type
-             |
-             v
-       factory lookup
-        /           \
- no override       has override
-      |                 |
- create base       create derived
+```mermaid
+flowchart TD
+    A["source code requests base_type"] --> B["factory lookup"]
+    B -->|"no override"| C["create base"]
+    B -->|"has override"| D["create derived"]
 ```
 
 factory 不是 C++ 意义上的函数重载，也不是约束重载。

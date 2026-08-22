@@ -6,48 +6,56 @@
 
 ## 目录
 
-1. [uvm_object 与 uvm_component 的区别](#1-uvm_object-与-uvm_component-的区别)
-2. [config_db 完成 set 后，若源变量发生变化，get 到的值是否同步更新？](#2-config_db-完成-set-后若源变量发生变化get-到的值是否同步更新)
-3. [uvm_info 的消息等级分类](#3-uvm_info-的消息等级分类)
-4. [config_db 的四个参数是什么？](#4-config_db-的四个参数是什么)
-5. [描述 UVM 的树形结构](#5-描述-uvm-的树形结构)
-6. [多个组件对同一个配置 set，最终谁生效？](#6-多个组件对同一个配置-set最终谁生效)
-7. [config_db 字段名前缀匹配（agt_* 的坑）](#7-config_db-字段名前缀匹配agt_-的坑)
-8. [config_db 的 set/get 层级匹配规则](#8-config_db-的-setget-层级匹配规则)
-9. [uvm_component 的生命周期](#9-uvm_component-的生命周期)
-10. [UVM 的 phase 分为哪两大类？](#10-uvm-的-phase-分为哪两大类)
-11. [UVM phase 的总体执行顺序与 run_test 的起点](#11-uvm-phase-的总体执行顺序与-run_test-的起点)
-12. [run_phase 与 main_phase 的区别](#12-run_phase-与-main_phase-的区别)
-13. [为什么 build_phase 是自顶向下执行？](#13-为什么-build_phase-是自顶向下执行)
-14. [运行中检测到复位，如何跳回 reset_phase？（phase jump）](#14-运行中检测到复位如何跳回-reset_phase-phase-jump)
-15. [UVM 的 objection 机制是什么？有什么用？](#15-uvm-的-objection-机制是什么有什么用)
-16. [TLM 中 PORT、EXPORT、IMP 的区别？](#16-tlm-中-port-export-imp-的区别)
-17. [验证环境中为什么用 tlm_fifo？它解决了什么问题？](#17-验证环境中为什么用-tlm_fifo它解决了什么问题)
-18. [seq.start() 与 start_item/finish_item 的区别？](#18-seqstart-与-start_itemfinish_item-的区别)
-19. [driver 与 sequencer 的握手机制？](#19-driver-与-sequencer-的握手机制)
-20. [sequence 的生命周期回调有哪些？顺序是什么？](#20-sequence-的生命周期回调有哪些顺序是什么)
-21. [m_sequencer 与 p_sequencer 的区别？](#21-m_sequencer-与-p_sequencer-的区别)
-22. [使用 uvm_do 宏时 sequence 会不会阻塞？](#22-使用-uvm_do-宏时-sequence-会不会阻塞)
-23. [sequence 脱离 sequencer 时，如何直接向 driver 发送激励？](#23-sequence-脱离-sequencer-时如何直接向-driver-发送激励)
-24. [virtual sequence 是什么？和普通 sequence 有什么区别？如何协调多个 sequencer？](#24-virtual-sequence-是什么和普通-sequence-有什么区别如何协调多个-sequencer)
+- [第3章 UVM 基础（Q1-Q9）](#第3章-uvm-基础q1-q9)
+  - [1. uvm_object 与 uvm_component 的区别](#1-uvm_object-与-uvm_component-的区别)
+  - [2. config_db 完成 set 后，若源变量发生变化，get 到的值是否同步更新？](#2-config_db-完成-set-后若源变量发生变化get-到的值是否同步更新)
+  - [3. uvm_info 的消息等级分类](#3-uvm_info-的消息等级分类)
+  - [4. config_db 的四个参数是什么？](#4-config_db-的四个参数是什么)
+  - [5. 描述 UVM 的树形结构](#5-描述-uvm-的树形结构)
+  - [6. 多个组件对同一个配置 set，最终谁生效？](#6-多个组件对同一个配置-set最终谁生效)
+  - [7. config_db 字段名前缀匹配（agt_* 的坑）](#7-config_db-字段名前缀匹配agt_-的坑)
+  - [8. config_db 的 set/get 层级匹配规则](#8-config_db-的-setget-层级匹配规则)
+  - [9. uvm_component 的生命周期](#9-uvm_component-的生命周期)
+- [第4章 TLM 通信（Q10-Q11）](#第4章-tlm-通信q10-q11)
+  - [10. TLM 中 PORT、EXPORT、IMP 的区别？](#10-tlm-中-port-export-imp-的区别)
+  - [11. 验证环境中为什么用 tlm_fifo？它解决了什么问题？](#11-验证环境中为什么用-tlm_fifo它解决了什么问题)
+- [第5章 phase 与 objection（Q12-Q17）](#第5章-phase-与-objectionq12-q17)
+  - [12. UVM 的 phase 分为哪两大类？](#12-uvm-的-phase-分为哪两大类)
+  - [13. UVM phase 的总体执行顺序与 run_test 的起点](#13-uvm-phase-的总体执行顺序与-run_test-的起点)
+  - [14. run_phase 与 main_phase 的区别](#14-run_phase-与-main_phase-的区别)
+  - [15. 为什么 build_phase 是自顶向下执行？](#15-为什么-build_phase-是自顶向下执行)
+  - [16. 运行中检测到复位，如何跳回 reset_phase？（phase jump）](#16-运行中检测到复位如何跳回-reset_phase-phase-jump)
+  - [17. UVM 的 objection 机制是什么？有什么用？](#17-uvm-的-objection-机制是什么有什么用)
+- [第6章 sequence（Q18-Q26）](#第6章-sequenceq18-q26)
+  - [18. seq.start() 与 start_item/finish_item 的区别？](#18-seqstart-与-start_itemfinish_item-的区别)
+  - [19. driver 与 sequencer 的握手机制？](#19-driver-与-sequencer-的握手机制)
+  - [20. sequence 的生命周期回调有哪些？顺序是什么？](#20-sequence-的生命周期回调有哪些顺序是什么)
+  - [21. m_sequencer 与 p_sequencer 的区别？](#21-m_sequencer-与-p_sequencer-的区别)
+  - [22. 使用 uvm_do 宏时 sequence 会不会阻塞？](#22-使用-uvm_do-宏时-sequence-会不会阻塞)
+  - [23. sequence 脱离 sequencer 时，如何直接向 driver 发送激励？](#23-sequence-脱离-sequencer-时如何直接向-driver-发送激励)
+  - [24. virtual sequence 是什么？和普通 sequence 有什么区别？如何协调多个 sequencer？](#24-virtual-sequence-是什么和普通-sequence-有什么区别如何协调多个-sequencer)
+  - [25. sequence 如何获取组件的配置（config_db）？](#25-sequence-如何获取组件的配置config_db)
+  - [26. driver 如何向 sequence 返回 rsp？（response 机制）](#26-driver-如何向-sequence-返回-rspresponse-机制)
 
 ---
 
-## 1. uvm_object 与 uvm_component 的区别
+## 第3章 UVM 基础（Q1-Q9）
 
-### 题目来源
+### 1. uvm_object 与 uvm_component 的区别
+
+**题目来源**
 
 - 小米 · ASIC验证 · 实习（uvm_object 与 uvm_component 的区别）
 - 平头哥 · 数字IC验证 · 校招 · 一面（uvm_object 与 uvm_component 的区别）
 - 新凯来 · 数字IC验证 · 校招（uvm_object 与 uvm_component 的区别）
 - 集益威 · 数字IC验证 · 校招 · 一面（component 与 object 的区别）
 
-### 考点
+**考点**
 
 - UVM 基类继承体系（component 派生自 object）
 - component 树 / parent / phase 生命周期
 
-### 参考答案
+**参考答案**
 
 uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_object**（中间隔了 uvm_report_object）。所以所有 component 都是 object，但不是所有 object 都是 component。
 
@@ -75,18 +83,18 @@ uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_
 
 ---
 
-## 2. config_db 完成 set 后，若源变量发生变化，get 到的值是否同步更新？
+### 2. config_db 完成 set 后，若源变量发生变化，get 到的值是否同步更新？
 
-### 题目来源
+**题目来源**
 
 - 合见工软 · 数字IC验证 · 校招 · 一面（config_db 完成 set 后，若源变量发生变化，get 到的值是否同步更新）
 
-### 考点
+**考点**
 
 - config_db 机制：set 与 get 的传递语义
 - 值拷贝 vs 引用传递（基础类型 vs object 类型）
 
-### 参考答案
+**参考答案**
 
 不会同步更新。config_db 的 set 对基础类型是**值拷贝**——调用 set 的那一刻，把源变量的当前值复制一份存进 config_db 的资源表里。之后源变量怎么改，都只影响它自己，资源表里存的还是当时拷贝的值，所以 get 拿到的永远是 set 时刻的值。
 
@@ -101,18 +109,18 @@ uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_
 
 ---
 
-## 3. uvm_info 的消息等级分类
+### 3. uvm_info 的消息等级分类
 
-### 题目来源
+**题目来源**
 
 - 合见工软 · 数字IC验证 · 校招 · 一面（uvm_info 的消息等级分类）
 
-### 考点
+**考点**
 
 - UVM report 机制：verbosity（冗余度）等级
 - verbosity 与 severity 的区分
 
-### 参考答案
+**参考答案**
 
 `uvm_info` 的消息等级就是 UVM 的 verbosity 等级，从低到高一共有六档：**NONE 是 0，LOW 是 100，MEDIUM 是 200，HIGH 是 300，FULL 是 400，DEBUG 是 500**。
 
@@ -139,20 +147,20 @@ uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_
 
 ---
 
-## 4. config_db 的四个参数是什么？
+### 4. config_db 的四个参数是什么？
 
-### 题目来源
+**题目来源**
 
 - 豪威科技 · 数字IC验证 · 校招 · 一面（config_db 四个参数含义）
 - 通用 · 数字IC验证 · 实习 · 基础面经（config_db 机制）
 - 某TPU · 数字IC验证 · 校招 · 面经（config_db 核心作用与各参数含义）
 
-### 考点
+**考点**
 
 - config_db 的 set 四参数
 - context / 路径 / 字段名 / 值的含义与配合
 
-### 参考答案
+**参考答案**
 
 config_db 是 UVM 的**配置传递机制**，set 有四个参数：**context（起始上下文）、实例路径、field name（字段名）、value（配置值）**。
 
@@ -171,19 +179,19 @@ get 时也是四个参数：当前组件、空串（表示自己）、字段名�
 
 ---
 
-## 5. 描述 UVM 的树形结构
+### 5. 描述 UVM 的树形结构
 
-### 题目来源
+**题目来源**
 
 - 燧原科技 · 数字IC验证 · 校招 · AI方向（描述 UVM 的树形结构）
 
-### 考点
+**考点**
 
 - UVM 树形结构
 - uvm_top 与 uvm_test_top 的区别
 - 树的作用（phase 调度 / 配置寻址 / 调试）
 
-### 参考答案
+**参考答案**
 
 UVM 用一棵**组件树**管理整个验证平台，**真正的根是 uvm_top，不是 uvm_test_top**。
 
@@ -195,19 +203,19 @@ UVM 用一棵**组件树**管理整个验证平台，**真正的根是 uvm_top�
 
 ---
 
-## 6. 多个组件对同一个配置 set，最终谁生效？
+### 6. 多个组件对同一个配置 set，最终谁生效？
 
-### 题目来源
+**题目来源**
 
 - 某TPU · 数字IC验证 · 校招 · 面经（多层级组件对同一变量执行 set 操作时的生效规则）
 
-### 考点
+**考点**
 
 - config_db 多重设置优先级
 - 跨层次设置（高层优先）与同层次设置（后写优先）
 - context 用 this vs root 的影响
 
-### 参考答案
+**参考答案**
 
 分两种情况——**跨层次看地位，同层次看时间**。
 
@@ -221,19 +229,19 @@ UVM 用一棵**组件树**管理整个验证平台，**真正的根是 uvm_top�
 
 ---
 
-## 7. config_db 字段名前缀匹配（agt_* 的坑）
+### 7. config_db 字段名前缀匹配（agt_* 的坑）
 
-### 题目来源
+**题目来源**
 
 - 汇顶科技 · 数字IC验证 · 校招 · 一面（config_db 字段名的前缀匹配规则）
 
-### 考点
+**考点**
 
 - config_db 字段名通配符
 - 前缀匹配规则与配置错乱
 - 字段名写全的工程建议
 
-### 参考答案
+**参考答案**
 
 config_db 的字段名支持**通配符前缀匹配**。如果 set 时字段名写成 "agt_*"，它会匹配所有以 "agt_" 开头的字段名——比如你想配 "agt_axis"，但 get 端用了 "agt_*"，就会把一堆 agt_ 开头的配置项都匹配上。
 
@@ -245,18 +253,18 @@ config_db 的字段名支持**通配符前缀匹配**。如果 set 时字段名�
 
 ---
 
-## 8. config_db 的 set/get 层级匹配规则
+### 8. config_db 的 set/get 层级匹配规则
 
-### 题目来源
+**题目来源**
 
 - 合见工软 · 数字IC验证 · 校招 · 一面（config_db 中 set/get 操作的层级匹配规则）
 
-### 考点
+**考点**
 
 - set/get 匹配四要素（类型 / 路径 / 字段名 / 时间）
 - 配置不生效的排查方法
 
-### 参考答案
+**参考答案**
 
 set 和 get 要能对上，需要**四个条件同时满足**，缺一个 get 就失败：
 
@@ -271,19 +279,19 @@ set 和 get 要能对上，需要**四个条件同时满足**，缺一个 get �
 
 ---
 
-## 9. uvm_component 的生命周期
+### 9. uvm_component 的生命周期
 
-### 题目来源
+**题目来源**
 
 - 乐鑫科技 · 数字IC验证 · 校招 · 笔试（uvm_component 生命周期）
 
-### 考点
+**考点**
 
 - component 生命周期与 phase 机制
 - 构建阶段（build/connect）与运行阶段（run/check/report）
 - component 与 object 生命周期对比
 
-### 参考答案
+**参考答案**
 
 component 的生命周期由 **UVM 的 phase 机制**管理，分**构建、运行、收尾**三个阶段：
 
@@ -299,19 +307,86 @@ component 的生命周期由 **UVM 的 phase 机制**管理，分**构建、运�
 
 ---
 
-## 10. UVM 的 phase 分为哪两大类？
+## 第4章 TLM 通信（Q10-Q11）
 
-### 题目来源
+### 10. TLM 中 PORT、EXPORT、IMP 的区别？
+
+**题目来源**
+
+- 某TPU公司 · 数字IC验证 · 校招 · 面经（对 TLM 端口 port、export、import 的理解）
+- 平头哥 · 数字IC设计验证 · 实习 · 一面（对 TLM 端口的了解与详细介绍）
+- 通用 · 数字IC验证 · 实习 · 基础面经（TLM 通信：port / export / imp / analysis_port）
+
+**考点**
+
+- 三种端口角色的区分（发起 / 转发 / 实现）
+- 控制流与数据流的分离
+- analysis 广播与普通 TLM 的区别
+
+**参考答案**
+
+TLM 是事务级建模，让组件之间通过标准端口交换 transaction，而不是直接访问对方内部。端口分三种角色：
+
+**第一，PORT 是操作发起端。** 谁要主动调用 put/get/write，谁就持有 PORT。判断 PORT 归属看"谁调用函数"，不看数据往哪流——比如 get 操作里数据从对端流向自己，但发起调用的还是自己，所以自己用 PORT。
+
+**第二，EXPORT 是转发端。** 它不发起也不实现，只把接口往下一层透传，常用于父层把子组件的端口暴露给外面，或把外面的请求转给内部，起"传话筒"作用。
+
+**第三，IMP 是实现端。** 它是 TLM 调用链的终点，真正执行 put/get/write 方法的地方。IMP 的第二个参数指明方法写在哪个组件里，写了 IMP 就必须实现对应方法，否则编译报错。
+
+**连接规则**：端口链路必须最终到达 IMP，中间可以有 PORT、EXPORT 透传；方向判断看"谁调用 connect、谁是被连的接口"。
+
+**analysis 是特殊的一类**：analysis_port 只有 write 操作，是一对多广播，发布者不等待订阅者响应，常用于 monitor 把数据同时发给 scoreboard 和覆盖率采集器。
+
+> 一句话：**PORT 发起、EXPORT 转发、IMP 实现，链路必须落到 IMP；判断端口看谁调用不看数据方向；analysis 是"发完不管"的一对多广播。**
+
+---
+
+### 11. 验证环境中为什么用 tlm_fifo？它解决了什么问题？
+
+**题目来源**
+
+- 平头哥 · 数字IC验证 · 校招 · 一面（验证环境中使用 tlm_fifo 的必要性）
+- 小米 · 处理器验证 · 校招（是否接触过 TLM 通信——开放题，可借此展开）
+
+**考点**
+
+- FIFO 的缓冲与节奏解耦作用
+- analysis 广播与 blocking get 的组合
+- FIFO 与直接 IMP 的取舍
+
+**参考答案**
+
+tlm_fifo 本质是组件之间的"中间仓库"：发送方把 transaction 存进去，接收方按自己的节奏取出来，两边互不等待。
+
+它主要解决三个问题：
+
+**第一，节奏解耦。** 发送方（比如 model、monitor）和接收方（scoreboard）的处理速度可能不匹配——发方推完就走，收方可以慢慢处理，数据先存在 FIFO 里，不会因为收方慢而阻塞发方。
+
+**第二，把"广播"变成"可拉取"。** monitor 用 analysis_port 广播数据（发完不管），scoreboard 却需要主动、按自己的节奏取数据——tlm_analysis_fifo 正好把两者接起来：analysis_export 接收广播存入，blocking_get_export 让 scoreboard 主动 get。
+
+**第三，缓冲多路数据并支持调试。** scoreboard 要同步期望值和实际值两路数据，FIFO 让两路各自缓存、谁先到都行；还能用 used/is_empty/is_full 监控流量、flush 清空。
+
+**什么时候不需要 FIFO**：如果接收方只是轻量处理（比如覆盖率采集），数据来一个处理一个，直接用 analysis_imp 更简单，没必要引入 FIFO。
+
+> 一句话：**tlm_fifo 是中间仓库——节奏解耦、把 analysis 广播转成可主动拉取、多路缓冲可调试；接收方处理轻量时直接用 IMP 更简单。**
+
+---
+
+## 第5章 phase 与 objection（Q12-Q17）
+
+### 12. UVM 的 phase 分为哪两大类？
+
+**题目来源**
 
 - 中兴通讯 · 数字IC验证 · 校招 · 领军计划（耗时与不耗时 phase 的区分）
 - 海光 · 数字IC验证 · 校招 · NoC方向（UVM 核心 phase 的分类与简要介绍）
 
-### 考点
+**考点**
 
 - function phase 与 task phase 的区别（是否耗仿真时间）
 - 12 个 run-time phase 的归属与 4 段式结构
 
-### 参考答案
+**参考答案**
 
 UVM 的 phase 分两大类，分水岭是**能不能耗仿真时间**：
 
@@ -330,21 +405,21 @@ UVM 的 phase 分两大类，分水岭是**能不能耗仿真时间**：
 
 ---
 
-## 11. UVM phase 的总体执行顺序与 run_test 的起点
+### 13. UVM phase 的总体执行顺序与 run_test 的起点
 
-### 题目来源
+**题目来源**
 
 - 通用 · 数字IC验证 · 实习 · 基础面经（phase 机制：各 phase 执行顺序）
 - 字节跳动 · 数字IC验证 · 实习 · 高频题（run_test 开始执行的是哪个 phase、UVM 中 phase 的完整分类与分组）
 - 中兴通讯 · 数字IC验证 · 校招 · 领军计划（UVM Phase 机制的总体执行顺序）
 
-### 考点
+**考点**
 
 - 三段式顺序：构建 → 运行 → 收尾
 - build 自顶向下、connect 自底向上
 - run_test 的启动流程
 
-### 参考答案
+**参考答案**
 
 总体分三段，固定顺序执行：**构建 → 运行 → 收尾**。
 
@@ -356,22 +431,22 @@ UVM 的 phase 分两大类，分水岭是**能不能耗仿真时间**：
 
 ---
 
-## 12. run_phase 与 main_phase 的区别
+### 14. run_phase 与 main_phase 的区别
 
-### 题目来源
+**题目来源**
 
 - 小米 · 处理器验证 · 校招（run_phase 与 main_phase 的区别）
 - 芯动科技 · 数字IC验证 · 校招（run_phase 与 main_phase 的区别）
 - 小鹏汽车 · SOC验证 · 校招（区别；main_phase 写了 raise_objection 而 run_phase 没写，run_phase 能否正常运行）
 - 某TPU公司 · 数字IC验证 · 校招（两者关系；main_phase 里 raise/drop objection 时 run_phase 是否继续执行）
 
-### 考点
+**考点**
 
 - run_phase 与 12 个 run-time phase 的并行关系
 - 两条线各有独立 objection，互不干扰
 - 进入 extract 前两条线都必须收工
 
-### 参考答案
+**参考答案**
 
 **run_phase 和 main_phase 是并行关系，不是先后关系**。run_phase 是一条总流水线，从 start_of_simulation 一直跑到 extract 之前；main_phase 只是 12 个 run-time phase 之一（主激励阶段），是精细流水线中间的一段。
 
@@ -387,20 +462,20 @@ UVM 的 phase 分两大类，分水岭是**能不能耗仿真时间**：
 
 ---
 
-## 13. 为什么 build_phase 是自顶向下执行？
+### 15. 为什么 build_phase 是自顶向下执行？
 
-### 题目来源
+**题目来源**
 
 - 面试书《Cracking Digital VLSI Verification Interview》· 验证方法学章（build_phase 在组件层次中自顶向下执行的原因）
 - 豪威科技 · 数字IC验证 · 校招 · 一面（build_phase / main_phase / configure_phase 中 AXI VIP 和 APB VIP 的配置——应用型）
 
-### 考点
+**考点**
 
 - top-down 的因果必然：父组件在 build 里 create 子组件
 - 与 connect bottom-up、task phase 并发的对比
 - 漏创建组件的后果
 
-### 参考答案
+**参考答案**
 
 build_phase 自顶向下是**因果必然**，不是约定：phase 调度器调用某个组件 build 的前提，是它已经存在于树上；而组件上树靠**父组件在自己的 build_phase 里 create**。env.build 不执行，i_agt 就不存在，调度器永远不会调 i_agt.build。
 
@@ -418,18 +493,18 @@ build_phase 自顶向下是**因果必然**，不是约定：phase 调度器调�
 
 ---
 
-## 14. 运行中检测到复位，如何跳回 reset_phase？（phase jump）
+### 16. 运行中检测到复位，如何跳回 reset_phase？（phase jump）
 
-### 题目来源
+**题目来源**
 
 - 思朗 · 数字IC验证 · 校招 · 面经（main_phase 运行中途需要触发复位时的跳转方式）
 
-### 考点
+**考点**
 
 - phase jump 的用法与影响范围
 - 跳转的副作用处理与防死循环
 
-### 参考答案
+**参考答案**
 
 运行中 DUT 突然复位（比如 rst_n 拉低），可以用 `phase.jump` 让整个 schedule 跳回 reset_phase 重新执行，最常见的就是 `phase.jump(uvm_reset_phase::get())`。
 
@@ -447,22 +522,22 @@ build_phase 自顶向下是**因果必然**，不是约定：phase 调度器调�
 
 ---
 
-## 15. UVM 的 objection 机制是什么？有什么用？
+### 17. UVM 的 objection 机制是什么？有什么用？
 
-### 题目来源
+**题目来源**
 
 - 面试书《Cracking Digital VLSI Verification Interview》· 验证方法学章（objection 是什么、有什么用——五星考点）
 - 小鹏汽车 · SOC验证 · 校招（main_phase 写了 raise_objection 而 run_phase 没写，run_phase 能否正常运行）
 - 某TPU公司 · 数字IC验证 · 校招（main_phase 里 raise/drop objection 时 run_phase 是否继续执行）
 
-### 考点
+**考点**
 
 - objection 的本质：task phase 的存活计数
 - raise/drop 配对、计数归零才结束 phase
 - 谁应该控制 objection（sequence 最佳）
 - 与 run_phase 的独立计数关系
 
-### 参考答案
+**参考答案**
 
 objection 是 UVM 用来**控制 task phase 何时结束**的机制，本质是挂在 phase 上的一个**存活计数**：raise_objection 让计数加一，表示"我还有活没干完，phase 别结束"；drop_objection 让计数减一，表示"我干完了"。计数归零、同时所有 phase 进程都结束，phase 才放行。
 
@@ -480,82 +555,21 @@ objection 是 UVM 用来**控制 task phase 何时结束**的机制，本质是�
 
 ---
 
-## 16. TLM 中 PORT、EXPORT、IMP 的区别？
+## 第6章 sequence（Q18-Q26）
 
-### 题目来源
+### 18. seq.start() 与 start_item/finish_item 的区别？
 
-- 某TPU公司 · 数字IC验证 · 校招 · 面经（对 TLM 端口 port、export、import 的理解）
-- 平头哥 · 数字IC设计验证 · 实习 · 一面（对 TLM 端口的了解与详细介绍）
-- 通用 · 数字IC验证 · 实习 · 基础面经（TLM 通信：port / export / imp / analysis_port）
-
-### 考点
-
-- 三种端口角色的区分（发起 / 转发 / 实现）
-- 控制流与数据流的分离
-- analysis 广播与普通 TLM 的区别
-
-### 参考答案
-
-TLM 是事务级建模，让组件之间通过标准端口交换 transaction，而不是直接访问对方内部。端口分三种角色：
-
-**第一，PORT 是操作发起端。** 谁要主动调用 put/get/write，谁就持有 PORT。判断 PORT 归属看"谁调用函数"，不看数据往哪流——比如 get 操作里数据从对端流向自己，但发起调用的还是自己，所以自己用 PORT。
-
-**第二，EXPORT 是转发端。** 它不发起也不实现，只把接口往下一层透传，常用于父层把子组件的端口暴露给外面，或把外面的请求转给内部，起"传话筒"作用。
-
-**第三，IMP 是实现端。** 它是 TLM 调用链的终点，真正执行 put/get/write 方法的地方。IMP 的第二个参数指明方法写在哪个组件里，写了 IMP 就必须实现对应方法，否则编译报错。
-
-**连接规则**：端口链路必须最终到达 IMP，中间可以有 PORT、EXPORT 透传；方向判断看"谁调用 connect、谁是被连的接口"。
-
-**analysis 是特殊的一类**：analysis_port 只有 write 操作，是一对多广播，发布者不等待订阅者响应，常用于 monitor 把数据同时发给 scoreboard 和覆盖率采集器。
-
-> 一句话：**PORT 发起、EXPORT 转发、IMP 实现，链路必须落到 IMP；判断端口看谁调用不看数据方向；analysis 是"发完不管"的一对多广播。**
-
----
-
-## 17. 验证环境中为什么用 tlm_fifo？它解决了什么问题？
-
-### 题目来源
-
-- 平头哥 · 数字IC验证 · 校招 · 一面（验证环境中使用 tlm_fifo 的必要性）
-- 小米 · 处理器验证 · 校招（是否接触过 TLM 通信——开放题，可借此展开）
-
-### 考点
-
-- FIFO 的缓冲与节奏解耦作用
-- analysis 广播与 blocking get 的组合
-- FIFO 与直接 IMP 的取舍
-
-### 参考答案
-
-tlm_fifo 本质是组件之间的"中间仓库"：发送方把 transaction 存进去，接收方按自己的节奏取出来，两边互不等待。
-
-它主要解决三个问题：
-
-**第一，节奏解耦。** 发送方（比如 model、monitor）和接收方（scoreboard）的处理速度可能不匹配——发方推完就走，收方可以慢慢处理，数据先存在 FIFO 里，不会因为收方慢而阻塞发方。
-
-**第二，把"广播"变成"可拉取"。** monitor 用 analysis_port 广播数据（发完不管），scoreboard 却需要主动、按自己的节奏取数据——tlm_analysis_fifo 正好把两者接起来：analysis_export 接收广播存入，blocking_get_export 让 scoreboard 主动 get。
-
-**第三，缓冲多路数据并支持调试。** scoreboard 要同步期望值和实际值两路数据，FIFO 让两路各自缓存、谁先到都行；还能用 used/is_empty/is_full 监控流量、flush 清空。
-
-**什么时候不需要 FIFO**：如果接收方只是轻量处理（比如覆盖率采集），数据来一个处理一个，直接用 analysis_imp 更简单，没必要引入 FIFO。
-
-> 一句话：**tlm_fifo 是中间仓库——节奏解耦、把 analysis 广播转成可主动拉取、多路缓冲可调试；接收方处理轻量时直接用 IMP 更简单。**
-
----
-
-## 18. seq.start() 与 start_item/finish_item 的区别？
-
-### 题目来源
+**题目来源**
 
 - 平头哥 · 数字IC验证 · 校招 · 一面（凉经）（seq.start() 与 start_item...end_item 的差异）
 - 通用 · 数字IC验证 · 实习 · 面试题汇总（UVM 中 sequence 的启动机制）
 
-### 考点
+**考点**
 
 - 两种"启动"的层次区别（启动整个 sequence vs 发送单个 item）
 - start_item/finish_item 在 uvm_do 内部的位置
 
-### 参考答案
+**参考答案**
 
 两者是"启动一个 sequence"和"发送一个 item"两个不同层次的动作。
 
@@ -569,9 +583,9 @@ tlm_fifo 本质是组件之间的"中间仓库"：发送方把 transaction 存�
 
 ---
 
-## 19. driver 与 sequencer 的握手机制？
+### 19. driver 与 sequencer 的握手机制？
 
-### 题目来源
+**题目来源**
 
 - 小米 · ASIC验证 · 实习（UVM 中 sequencer 与 driver 的握手机制）
 - 某TPU公司 · 数字IC验证 · 校招（driver 与 sequence 的握手机制）
@@ -580,13 +594,13 @@ tlm_fifo 本质是组件之间的"中间仓库"：发送方把 transaction 存�
 - 燧原科技 · 数字IC验证 · 校招 · AI方向（sequence、driver、sequencer 三者工作交互逻辑）
 - 某公司 · 数字IC验证 · 校招 · 一面（sequencer 与 driver 交互逻辑）
 
-### 考点
+**考点**
 
 - sequence → sequencer → driver 的完整链路
 - get_next_item 与 item_done 成对
 - 拉取式 vs 推送式
 
-### 参考答案
+**参考答案**
 
 完整链路是"sequence 产生、sequencer 仲裁、driver 拉取"三步。
 
@@ -602,19 +616,19 @@ tlm_fifo 本质是组件之间的"中间仓库"：发送方把 transaction 存�
 
 ---
 
-## 20. sequence 的生命周期回调有哪些？顺序是什么？
+### 20. sequence 的生命周期回调有哪些？顺序是什么？
 
-### 题目来源
+**题目来源**
 
 - 泰凌微 · 数字IC验证 · 校招 · 一面（pre_body/body/post_body 执行顺序是 sequence 生命周期考点）
 
-### 考点
+**考点**
 
 - pre_start/pre_body/body/post_body/post_start 五个回调顺序
 - body 是必须写的，pre/post 可选
 - call_pre_post 参数的作用
 
-### 参考答案
+**参考答案**
 
 sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、body、post_body、post_start。
 
@@ -630,21 +644,21 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 
 ---
 
-## 21. m_sequencer 与 p_sequencer 的区别？
+### 21. m_sequencer 与 p_sequencer 的区别？
 
-### 题目来源
+**题目来源**
 
 - 平头哥 · 数字IC验证 · 校招 · 一面（凉经）（p_sqr 与 m_sqr 的区别）
 - 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（m sequencer 与 p sequencer 的区别；p sequencer 的定义与用途）
 - 某TPU公司 · 数字IC验证 · 校招（m_sequencer 与 p_sequencer 的关系）
 
-### 考点
+**考点**
 
 - 静态类型 vs 强类型句柄
 - uvm_declare_p_sequencer 宏的作用
 - 使用风险与可复用性
 
-### 参考答案
+**参考答案**
 
 **第一，m_sequencer 是通用句柄。** 它的静态类型是 uvm_sequencer_base，每个 sequence 自带，用于通用的 sequence 基础机制——但它只能访问 sequencer 的通用成员，访问不了用户 sequencer 的自定义字段。
 
@@ -656,19 +670,19 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 
 ---
 
-## 22. 使用 uvm_do 宏时 sequence 会不会阻塞？
+### 22. 使用 uvm_do 宏时 sequence 会不会阻塞？
 
-### 题目来源
+**题目来源**
 
 - 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（使用 uvm_do 宏时 sequence 是否会出现阻塞）
 
-### 考点
+**考点**
 
 - uvm_do 展开为 start_item/finish_item
 - 阻塞点：等授权 + 等 item_done
 - 非阻塞的替代（send_request 等）
 
-### 参考答案
+**参考答案**
 
 **会阻塞，而且有两处。** uvm_do 展开后包含 start_item 和 finish_item 两步，各有一个阻塞点：
 
@@ -682,19 +696,19 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 
 ---
 
-## 23. sequence 脱离 sequencer 时，如何直接向 driver 发送激励？
+### 23. sequence 脱离 sequencer 时，如何直接向 driver 发送激励？
 
-### 题目来源
+**题目来源**
 
 - 字节跳动 · AI芯片验证 · 一面（sequence 脱离 sequencer 时，如何直接向 driver 发送激励）
 
-### 考点
+**考点**
 
 - driver 的 seq_item_port 机制
 - 绕过 sequencer 直接握手
 - 应用场景与代价
 
-### 参考答案
+**参考答案**
 
 正常流程是 sequence 经过 sequencer 仲裁再交给 driver，但某些场景（比如简单的单 sequence 环境）可以让 sequence 绕过 sequencer，直接和 driver 的 seq_item_port 握手。
 
@@ -708,9 +722,9 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 
 ---
 
-## 24. virtual sequence 是什么？和普通 sequence 有什么区别？如何协调多个 sequencer？
+### 24. virtual sequence 是什么？和普通 sequence 有什么区别？如何协调多个 sequencer？
 
-### 题目来源
+**题目来源**
 
 - 字节跳动 · 数字IC验证 · 实习 · 高频题（virtual sequence vs 普通 sequence 的差异 + 为什么命名为 virtual）
 - 豪威科技 · 数字IC验证 · 校招 · 一面（virtual sequencer 怎么调度多个 AXI sequence）
@@ -718,13 +732,13 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 - 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（virtual sequencer 与 virtual sequence 的用法）
 - 兆易创新 · 数字IC验证 · 校招（virtual sequence 内激励在随机化时如何同步）
 
-### 考点
+**考点**
 
 - virtual sequence 与普通 sequence 的本质区别
 - virtual sequencer 的角色与连接方式
 - 子 sequence 之间的同步方式
 
-### 参考答案
+**参考答案**
 
 virtual sequence 是**自己不产生激励的 sequence**——body 里启动多个真实子 sequence，分别派到不同 sequencer，用于**协调多个接口**的测试场景。
 
@@ -738,6 +752,52 @@ virtual sequence 是**自己不产生激励的 sequence**——body 里启动多
 
 ---
 
+### 25. sequence 如何获取组件的配置（config_db）？
 
+**题目来源**
 
+- 汇顶科技 · 数字IC验证 · 校招 · 一面（sequence 获取组件 config 的方式）
 
+**考点**
+
+- sequence 是 object、不在树上没有路径
+- 借 m_sequencer 当 context 取配置
+- set 端路径指向 sequencer、四要素匹配
+
+**参考答案**
+
+sequence 是 uvm_object，不在组件树上、没有自己的路径，而 config_db 的 get 需要"从某个组件路径出发"查找——解决方法是**借 m_sequencer 的路径**。
+
+**第一，get 时用 m_sequencer 当 context。** sequence 启动在 sequencer 上，m_sequencer 在树上有路径，第一参数写 m_sequencer、第二参数写空串，就从 sequencer 自己开始找。
+
+**第二，set 端路径要指向 sequencer。** test 里 set 时目标路径写成 "env.i_agt.sqr" 这类 sequencer 路径，加上类型、字段名一致，get 才能取到。
+
+**第三，取不到要处理。** get 返回 0 时要么报 fatal、要么给默认值，不能静默继续。
+
+> 一句话：**sequence 没路径，借 m_sequencer 当 context 取配置，set 端把配置挂在 sequencer 路径上；类型、路径、字段名三个钥匙任一不对就取不到。**
+
+---
+
+### 26. driver 如何向 sequence 返回 rsp？（response 机制）
+
+**题目来源**
+
+- 字节跳动 · 数字IC验证 · 校招 · 一面（driver 向 sequence 返回 rsp 的方式，`get_rsp` 相关机制）
+
+**考点**
+
+- response 通道：driver → sequence 的回执
+- get_response / item_done(rsp) / put_response（面经写的 get_rsp 即 get_response）
+- set_id_info 的路由作用
+
+**参考答案**
+
+response 是 **driver 回给 sequence 的执行结果**——读操作返回 rdata、写操作返回 status，sequence 发请求后需要结果，不能只发不收。
+
+**第一，sequence 侧用 get_response(rsp) 阻塞等待。** 发出请求后挂起，等 driver 的回执到了才继续（面经里说的 get_rsp 机制就是 get_response）。
+
+**第二，driver 侧两个动作：** `item_done(rsp)` 一步完成；或 `item_done()` + `put_response(rsp)` 两步。干完活把结果填进 rsp 再返回。
+
+**第三，关键是 set_id_info(req)。** 它把原请求的 sequence_id/transaction_id 复制到 rsp 上，sequencer 才能把 rsp 路由回正确的 sequence——**忘了它，get_response 永远等不到或路由错乱**。
+
+> 一句话：**driver 干完活调 item_done(rsp) 返回结果，sequence 用 get_response 阻塞等；set_id_info(req) 是路由钥匙，忘了就收不到。**

@@ -1235,254 +1235,313 @@ endtask
 > 记忆：**sequence 里 fork 后台线程要"管得住"——join_none + forever = 野线程（挂起/强杀/累积）；正确姿势是标志位退出 + join 收尾；循环索引记得 automatic。**
 ## 6.6 在 sequence 中使用 `config_db`（🟡 中）
 ### 6.6.1 在 sequence 中获取参数（🟡 中）
-sequence 不是 component，因此没有稳定的 component 层次位置。
-可借助 `m_sequencer` 作为上下文获取配置：
+
+**获取配置：借 m_sequencer 当上下文**
+
 ```systemverilog
 virtual task body();
     int packet_count;
     if (!uvm_config_db #(int)::get(
-            m_sequencer,                  // component 上下文
-            "",                           // 从当前 sequencer 路径取值
+            m_sequencer,        // [1] 用 m_sequencer 当 context（它在树上有路径）
+            "",                 // [2] 空串：从 m_sequencer 自己开始找
             "packet_count",
             packet_count)) begin
-        `uvm_fatal("CFG", "packet_count not found")
+        `uvm_fatal("CFG", "packet_count not found")   // [3] 找不到就 fatal
     end
     repeat (packet_count)
         `uvm_do(req)
 endtask
 ```
-test 中设置：
+
+test 里设置（路径指向 sequencer）：
+
 ```systemverilog
 uvm_config_db #(int)::set(
     this,
-    "env.i_agt.sqr",
+    "env.i_agt.sqr",        // [4] set 在 sequencer 的路径上
     "packet_count",
     100
 );
 ```
-推荐优先级：
-1. sequence 自身字段直接赋值。
-2. 配置对象传入 sequence。
-3. 确需跨层共享时再使用 `config_db`。
-直接字段更易追踪：
+
+**为什么用 m_sequencer 当 context**：config_db 的 get 需要"某个组件路径"当起点——sequence 不在树上没有路径，但它启动在 m_sequencer 上、m_sequencer 在树上，借用它的路径就能取到配置。
+
+**推荐优先级**（记这个顺序）：
+
+1. **sequence 自身字段直接赋值**——最清晰，值从哪来一眼看清；
+2. **配置对象传入 sequence**——显式、可复用；
+3. **确需跨层共享时再 config_db**——最后手段（跨很多层、不好直接传才用）。
+
+直接赋值示例：
+
 ```systemverilog
-seq.packet_count = cfg.packet_count;
+seq.packet_count = cfg.packet_count;   // [1] 从配置对象取值，直接赋给字段
 seq.start(env.i_agt.sqr);
 ```
 
----
-
 ### 6.6.2 在 sequence 中设置参数（🟡 中）
-sequence 也可通过 sequencer 上下文设置配置：
+
+**sequence 也能通过 m_sequencer 上下文 set 配置**：
+
 ```systemverilog
 uvm_config_db #(bit)::set(
-    m_sequencer,
-    "uvm_test_top.env.scb",
+    m_sequencer,                     // [1] 用 m_sequencer 当 context
+    "uvm_test_top.env.scb",          // [2] 目标组件路径
     "traffic_started",
     1'b1
 );
 ```
-但 sequence 主动修改全局配置会产生隐式副作用。
-更适合使用：
-- `uvm_event` 通知。
-- TLM transaction 通知。
-- 共享配置对象中的受控状态。
-- virtual sequence 直接调用明确接口。
-路径必须根据上下文计算。
-若 `cntxt=m_sequencer`，`inst_name` 并不天然从 `uvm_test_top` 开始。
-调试时应打印：
+
+**⚠️ 但 sequence 主动改全局配置有副作用**——它悄悄改了别人的配置，别人可能正依赖旧值，出 bug 难查。**更适合的通知方式**（按优先级）：
+
+- **uvm_event 通知**（trigger/wait_trigger，明确的一次性信号）；
+- **TLM transaction 通知**（随数据流传递）；
+- **共享配置对象里的受控状态**（显式字段）；
+- **virtual sequence 直接调用明确接口**（最直接）。
+
+**路径要小心**：`cntxt=m_sequencer` 时，`inst_name` 是相对 m_sequencer 的路径，**并不天然从 uvm_test_top 开始**。调试时打印 context 确认：
+
 ```systemverilog
 `uvm_info("CFG",
-          $sformatf("context=%s", m_sequencer.get_full_name()),
+          $sformatf("context=%s", m_sequencer.get_full_name()),   // [1] 打印当前 sequencer 路径
           UVM_LOW)
 ```
-
----
-
 ### 6.6.3 `wait_modified` 的使用（🟢 低）
 `wait_modified` 等待某个配置项被重新设置。
 ```systemverilog
 virtual task body();
     bit enable;
     forever begin
-        // 首先读取当前值。
         void'(uvm_config_db #(bit)::get(
-            m_sequencer, "", "enable_traffic", enable));
+            m_sequencer, "", "enable_traffic", enable));   // [1] 先读当前值
         if (enable)
-            send_one_item();
-        // 等待同一配置路径和字段发生 set 更新。
-        uvm_config_db #(bit)::wait_modified(
-            m_sequencer,
-            "",
-            "enable_traffic"
-        );
+            send_one_item();                               // [2] 开着就发一单
+        uvm_config_db #(bit)::wait_modified(               // [3] 等配置被重新 set
+            m_sequencer, "", "enable_traffic");
     end
 endtask
 ```
 使用注意：
-- 等待前先读取一次初值。
-- 写入方必须对匹配路径执行 `set()`。
-- 仿真结束前要有办法退出 forever。
-- 高频运行时控制不宜依赖 config_db。
-- `wait_modified` 表示“配置项被写”，不一定表示值真的变化。
+- 等待前先读取一次初值——否则可能错过"当前已生效"的配置。
+- 写入方必须对匹配路径执行 `set()`——路径/字段名要对上，否则永远等不到。
+- 仿真结束前要有办法退出 forever——不然卡死（配 timeout 或外部标志）。
+- 高频运行时控制不宜依赖 config_db——config_db 有开销，高频用事件/共享对象。
+- `wait_modified` 表示“配置项被写”，不一定表示值真的变化——可能 set 了相同值。
 
 ---
 
 ## 6.7 response 的使用（🔴 高）
 ### 6.7.1 `put_response` 与 `get_response`（🔴 高）
-若 sequence 需要 driver 返回执行结果，可使用 response 通道。
-sequence：
+
+**核心：response 是 driver → sequence 的"回执"——sequence 发请求后需要知道执行结果（读到的数据、成功/失败），driver 干完活把结果"回寄"给发起请求的那个 sequence。**
+
+**为什么需要 response**：之前学的都是单向（sequence 发 req → driver 执行）。但很多场景 sequence 要结果——读操作要知道 rdata、写操作要知道 status。response 通道就是"回执"。
+
+**sequence 侧：get_response（阻塞等回执）**
+
 ```systemverilog
 class read_sequence extends uvm_sequence #(bus_item);
     `uvm_object_utils(read_sequence)
-    bus_item rsp;
+    bus_item rsp;                          // [1] 声明 rsp 句柄
     virtual task body();
         `uvm_do_with(req, {
-            op == BUS_READ;
+            op == BUS_READ;                // [2] 发一个读请求
         })
-        // 阻塞等待与本 sequence 对应的 response。
-        get_response(rsp);
+        get_response(rsp);                 // [3] 阻塞等 driver 返回的 response
         `uvm_info("RSP",
-                  $sformatf("read_data=0x%0h", rsp.rdata),
+                  $sformatf("read_data=0x%0h", rsp.rdata),   // [4] 用 rsp 里的结果
                   UVM_LOW)
     endtask
 endclass
 ```
-driver 产生独立 response：
+
+**关键 [3]**：`get_response(rsp)` 阻塞——发出 req 后挂起，等 driver 的 response 回来才继续。
+
+**driver 侧：item_done(rsp)（干活 + 回寄）**
+
 ```systemverilog
 task bus_driver::main_phase(uvm_phase phase);
     bus_item rsp;
     forever begin
-        seq_item_port.get_next_item(req);
-        drive_request(req);
-        rsp = bus_item::type_id::create("rsp");
-        rsp.set_id_info(req);             // 复制 sequence/transaction 路由信息
-        rsp.rdata  = sample_read_data();
+        seq_item_port.get_next_item(req);   // [1] 取请求
+        drive_request(req);                 // [2] 执行
+        rsp = bus_item::type_id::create("rsp");   // [3] 创建 response
+        rsp.set_id_info(req);               // [4] ★ 关键：关联到原请求
+        rsp.rdata  = sample_read_data();    // [5] 填结果
         rsp.status = BUS_OK;
-        // item_done(rsp) 在完成请求的同时返回应答。
-        seq_item_port.item_done(rsp);
+        seq_item_port.item_done(rsp);       // [6] 完成请求 + 同时返回 response
     end
 endtask
 ```
-也可先完成请求，再单独返回：
+
+**两种返回方式**（效果等价）：
+
 ```systemverilog
+// 方式一：完成 + 返回一步做（上面 [6]）
+seq_item_port.item_done(rsp);
+
+// 方式二：先完成请求，再单独 put response
 seq_item_port.item_done();
 seq_item_port.put_response(rsp);
 ```
-`set_id_info(req)` 很重要。
-它把 response 关联到原请求所属 sequence，sequencer 才能正确路由。
 
----
+**★ `set_id_info(req)` 为什么重要**：sequencer 上可能有多个 sequence 并发发请求，driver 返回 rsp 时**怎么知道该给哪个 sequence**？靠 `set_id_info(req)`——它把 req 的路由信息（sequence_id/transaction_id）复制到 rsp 上，sequencer 据此把 rsp 路由回正确的 sequence。**不调用它，rsp 没有路由信息，get_response 会永远等不到（挂起）或路由错乱。**
 
+**完整链路**：
+
+```text
+sequence: uvm_do_with(req) → sequencer → driver
+    driver: get_next_item → drive_request → set_id_info(req) → item_done(rsp)
+    → sequencer 按 ID 路由 → sequence 的 get_response(rsp) 被唤醒 → 用 rdata/status
+```
+
+**三个易错点**：
+
+1. **忘了 set_id_info(req)** → rsp 无路由信息 → get_response 挂起/错乱（最常见）；
+2. **get_response 必须和 req 配对**——每次带 get_response 的请求，都要对应一个 item_done(rsp)；
+3. **rsp 类型要和 req 兼容**——一般用同一个 item 类（读时 req/rsp 都是 bus_item）。
+
+> 记忆：**response = driver 回给 sequence 的执行结果——driver 调 item_done(rsp)（或 item_done()+put_response）返回，sequence 用 get_response 阻塞等；set_id_info(req) 让 rsp 带上原请求的路由 ID，sequencer 才能送回正确的 sequence。**
 ### 6.7.2 response 的数量问题（🟡 中）
-每个 sequence 内部有 response queue。
-如果 driver 不断返回 response，而 sequence 不读取，队列会溢出。
-默认深度通常较小，教材示例强调不能忽略此问题。
-典型错误：
+
+**核心：driver 每次 `item_done(rsp)` 都会往 sequence 的 response queue 塞一个 rsp。如果 sequence 只发不收，队列会装满溢出——默认深度很小，这是真实存在的坑。**
+
+**典型错误：只发不收**
+
+```systemverilog
+repeat (100) begin
+    `uvm_do(req)         // [1] 发了 100 个请求
+    // driver 每次都返回 rsp，但这里从不 get_response！  ← [2] 队列塞满 100 个没人取
+end
+```
+
+**后果**：response queue 深度默认很小（常见 8），发 100 收 0 → **溢出**（UVM 报 response queue overflow，甚至丢 response）。
+
+**修正一：一发一收**（最简单）
+
 ```systemverilog
 repeat (100) begin
     `uvm_do(req)
-    // driver 每次都返回 rsp，但这里从不 get_response。
+    get_response(rsp);   // [1] 发一个、收一个，队列永远不满
 end
 ```
-修正：
-```systemverilog
-repeat (100) begin
-    `uvm_do(req)
-    get_response(rsp);                   // 一发一收
-end
-```
-或将发送与接收并行：
+
+**修正二：发送与接收并行**（吞吐更高）
+
 ```systemverilog
 fork
     begin : send_thread
         repeat (100)
-            `uvm_do(req)
+            `uvm_do(req)                // [1] 只管发
     end
     begin : response_thread
         repeat (100) begin
-            get_response(rsp);
+            get_response(rsp);          // [2] 并行地收
             process_response(rsp);
         end
     end
 join
 ```
-也可调整队列深度，但这只是容量策略，不是替代消费逻辑。
+
+**修正三：调队列深度**（只是"扩容"，不是解法）
+
 ```systemverilog
-set_response_queue_depth(32);
+set_response_queue_depth(32);   // [1] 把队列调大
 ```
-把深度设为 `-1` 可能表示无限制，但会掩盖泄漏并增加内存占用。
 
----
+**注意**：调深度是容量策略，**不是替代消费逻辑**——根本不 get_response 的话调多大都会满。深度设 -1（无限制）更糟：掩盖泄漏 + 内存膨胀。
 
-### 6.7.3 response handler 与另类的 response（🟢 进阶）
-response handler 可让 response 到达时自动回调，而不必显式 `get_response()`。
+> 记忆：**driver 每返回一个 rsp 就占一个队列位，只发不收会溢出——一发一收（get_response）或收发并行（fork）；调深度只是扩容，根本解法是"消费 response"。**
+
+### 6.7.3 response handler（🟢 进阶）
+
+**核心：get_response 是"主动等"（阻塞）；response handler 是"被动收"——rsp 一到自动回调你写的处理函数，不用在 body 里显式 get_response。**
+
+**用法：开启 + 写 handler**
+
 ```systemverilog
 class async_response_sequence extends uvm_sequence #(bus_item);
     `uvm_object_utils(async_response_sequence)
+
     virtual task pre_body();
-        // 默认关闭，必须显式开启。
-        use_response_handler(1);
+        use_response_handler(1);        // [1] 默认关闭，必须显式开启
     endtask
+
     virtual function void response_handler(
-        uvm_sequence_item response
+        uvm_sequence_item response      // [2] rsp 到达时自动调这个函数
     );
         bus_item typed_rsp;
-        if (!$cast(typed_rsp, response)) begin
+        if (!$cast(typed_rsp, response)) begin   // [3] 类型转换检查
             `uvm_error("RSP", "unexpected response type")
             return;
         end
-        process_response(typed_rsp);
+        process_response(typed_rsp);    // [4] 处理
     endfunction
+
     virtual task body();
         repeat (100)
-            `uvm_do(req)
+            `uvm_do(req)                // [5] 只管发，rsp 到了自动走 handler
     endtask
 endclass
 ```
-特点：
-- handler 是 function，不能阻塞。
-- 重处理应转移到 FIFO 或后台 task。
-- 开启 handler 后不要再按普通方式重复消费同一 response。
-- 仍需处理 response 数量与 sequence 生命周期。
 
----
+**对比 get_response 与 handler**：
+
+| | get_response | response_handler |
+|---|---|---|
+| 方式 | **主动等**（阻塞） | **被动收**（自动回调） |
+| 场景 | 一发一收、顺序处理 | 异步、发完不管、rsp 到了再处理 |
+| 是否阻塞 | 阻塞 body | 不阻塞（function） |
+
+**4 个注意点**：
+
+1. **handler 是 function，不能阻塞**——不能在里面等时间、放耗时代码；
+2. **重处理要转移**——耗时处理搬到 FIFO 或后台 task，handler 只做轻量分发；
+3. **开启后不要再 get_response**——否则同一个 rsp 被消费两次（handler 收一次 + get_response 又收一次）；
+4. **数量和生命周期还是要管**——handler 不解决"rsp 太多"，队列深度/消费逻辑照旧。
+
+> 记忆：**get_response 主动等、handler 被动收（use_response_handler 开启 + response_handler 自动回调）；handler 是 function 不能阻塞，重处理搬 FIFO，开了 handler 就别再 get_response 重复消费。**
 
 ### 6.7.4 rsp 与 req 类型不同（🟡 中）
-sequence 模板支持独立的请求和应答类型：
+
+**核心：之前 req 和 rsp 用同一个类；如果请求和返回字段差异很大，可以让 sequence 模板支持两种类型——`uvm_sequence #(REQ, RSP)`。**
+
+**sequence：两个类型参数**
+
 ```systemverilog
 class read_sequence extends uvm_sequence #(
-    bus_request,
-    bus_response
+    bus_request,     // [1] REQ 类型
+    bus_response     // [2] RSP 类型（独立）
 );
     `uvm_object_utils(read_sequence)
-    bus_response rsp;
+    bus_response rsp;                  // [3] rsp 用独立类型
     virtual task body();
-        `uvm_do_with(req, {
-            op == READ;
-        })
-        get_response(rsp);
+        `uvm_do_with(req, { op == READ; })
+        get_response(rsp);             // [4] 收的是 bus_response
     endtask
 endclass
 ```
-sequencer 与 driver 也要使用一致参数：
+
+**sequencer 和 driver 也要用一致的两个参数**：
+
 ```systemverilog
 class bus_sequencer extends uvm_sequencer #(
-    bus_request,
-    bus_response
+    bus_request, bus_response
 );
 class bus_driver extends uvm_driver #(
-    bus_request,
-    bus_response
+    bus_request, bus_response
 );
 ```
-独立 RSP 类型适合：
-- 请求和返回字段差异很大。
-- 读写共用 request，但 response 只包含状态和读数据。
-- 希望从类型层面禁止误用请求字段。
 
----
+**三件套类型必须对齐**：sequence/sequencer/driver 都是 `#(bus_request, bus_response)`——和 6.4.3 的"REQ 类型一致"同理，现在 REQ/RSP 两个都要一致。
 
+**独立 RSP 类型适合的场景**（3 类）：
+
+1. **请求和返回字段差异很大**——req 有地址/长度/burst，rsp 只有数据/状态；
+2. **读写共用 request**——读写的 req 一样，但 response 只含状态和读数据；
+3. **想从类型层面禁止误用**——rsp 是独立类型，拿 req 的字段当结果会编译报错（类型安全）。
+
+> 记忆：**rsp 类型独立 = `uvm_sequence #(REQ, RSP)` 两个参数，sequencer/driver 三件套对齐；适合请求返回字段差异大、读写共用 req 的场景——类型安全，防误用请求字段。**
 ## 6.8 sequence library（🟢 进阶）
 ### 6.8.1 随机选择 sequence（🟢 进阶）
 sequence library 是多个 sequence 类型的集合，可随机挑选并执行。
@@ -1584,82 +1643,120 @@ lib.start(env.i_agt.sqr);
 
 ## 6.9 sequence 握手全过程（🔴 高）
 ### 6.9.1 请求路径（🔴 高）
+
+**核心：sequence 发一笔请求的完整握手——start_item 申请授权 → 授权后随机化 → finish_item 提交 → sequencer 派发给 driver → driver 驱动 → item_done 完成 → finish_item 返回。**
+
 显式 sequence：
+
 ```systemverilog
 start_item(req);
 assert(req.randomize());
 finish_item(req);
 ```
+
 driver：
+
 ```systemverilog
 seq_item_port.get_next_item(req);
 drive_one_pkt(req);
 seq_item_port.item_done();
 ```
+
 时序关系：
-```text
-sequence                         sequencer                    driver
-   |                                 |                           |
-   | start_item(req)                 |                           |
-   |------ wait for grant ---------->|                           |
-   |<----------- grant --------------|                           |
-   | randomize req                   |                           |
-   | finish_item(req)                |                           |
-   |------ send request ------------>|                           |
-   |                                 |<-- get_next_item(req) -----|
-   |                                 |------ req ---------------->|
-   |                                 |                           | drive DUT
-   |                                 |<----- item_done -----------|
-   |<------ finish_item returns -----|                           |
+
+```mermaid
+sequenceDiagram
+    participant Seq as sequence
+    participant Sqr as sequencer
+    participant Drv as driver
+
+    Note over Seq,Sqr: start_item：请求授权
+    Seq->>Sqr: start_item(req)（申请发送资格）
+    Sqr-->>Seq: grant（授权）
+
+    Note over Seq: 随机化 req
+
+    Note over Seq,Drv: finish_item：提交并驱动
+    Seq->>Sqr: finish_item(req)（提交请求）
+    Sqr-->>Drv: 派发 req
+    Drv->>Drv: 驱动 DUT（按协议时序打信号）
+    Drv->>Sqr: item_done（执行完成）
+    Sqr-->>Seq: finish_item 返回（可继续下一笔）
 ```
-`finish_item()` 返回只说明 item 的 driver 握手完成。
-若 DUT 内部仍有流水线，测试不能据此立即结束。
+
+**逐步理解**：
+
+1. **start_item(req)**：sequence 申请发送资格（排队等仲裁）；
+2. **grant**：sequencer 授权（start_item 阻塞解除）；
+3. **randomize req**：授权后才随机化（能基于"即将发送"的状态）；
+4. **finish_item(req)**：提交请求，进入"等待 driver 完成"；
+5. **get_next_item(req)**：driver 主动来取（拉取式）；
+6. **驱动 DUT**：driver 按协议时序打信号；
+7. **item_done**：driver 通知完成；
+8. **finish_item 返回**：sequence 继续下一笔（start_item 再次申请）。
+
+> 记忆：**start_item 取号（申请授权）→ 授权后随机化 → finish_item 交货（提交）→ driver get_next_item 取货 → 驱动 → item_done 交差 → finish_item 返回——一个循环就是一笔请求的完整生命周期。**
 ### 6.9.2 `get_next_item` 与 `get`（🔴 高）
-常用 driver 取请求方式：
-```systemverilog
-seq_item_port.get_next_item(req);
-drive(req);
-seq_item_port.item_done();
-```
-或者：
-```systemverilog
-seq_item_port.get(req);
-drive(req);
-```
-区别：
 
-| 方式 | 完成通知 |
-|------|----------|
-| `get_next_item` | driver 必须调用 `item_done` |
-| `get` | 取出时已完成 sequencer 侧请求握手，不再配对 `item_done` |
-项目中应统一一种协议，不能把两套配对关系混用。
+**核心：driver 取请求有两种方式——`get_next_item` 要手动 `item_done`，`get` 自动完成握手。项目里统一用一种，不能混用。**
+
+**方式一：get_next_item + item_done**（显式配对）
+
+```systemverilog
+seq_item_port.get_next_item(req);   // [1] 取请求
+drive(req);                          // [2] 驱动
+seq_item_port.item_done();           // [3] 显式通知完成
+```
+
+**方式二：get**（自动完成）
+
+```systemverilog
+seq_item_port.get(req);   // [1] 取请求（取出时 sequencer 侧握手已自动完成）
+drive(req);               // [2] 驱动
+// 不需要 item_done！
+```
+
+**区别**：
+
+| 方式 | 完成通知 | 说明 |
+|------|----------|------|
+| `get_next_item` | driver **必须调 item_done** | 两步走，手动控制完成时机 |
+| `get` | 取出时 sequencer 侧握手已自动完成 | 一步到位，不再配对 item_done |
+
+**⚠️ 关键**：**项目里统一用一种协议**——不能混用两套配对关系（如 get_next_item 取了却不 item_done，或 get 之后又调 item_done），配对关系乱了 sequence 就会卡住。
+
 ### 6.9.3 sequence 调试清单（🟡 中）
-当 driver 收不到 item：
-1. 确认 sequence 的 `body()` 是否执行。
-2. 确认 `start()` 传入的 sequencer 不是 null。
-3. 确认 driver 的 `seq_item_port` 已连接 sequencer。
-4. 确认 REQ 参数类型一致。
-5. 确认 driver 进入了 `get_next_item()`。
-6. 检查其他 sequence 是否持有 lock/grab。
-7. 检查当前 sequence 的 `is_relevant()`。
-8. 检查前一个 item 是否漏掉 `item_done()`。
-9. 检查 phase 是否已经结束并杀死 sequence。
-10. 打开 sequencer arbitration trace。
-当 sequence 卡在 `finish_item()`：
-- driver 可能没有运行。
-- driver 可能没有调用 `item_done()`。
-- driver 可能在等待永远不会到来的接口条件。
-- sequencer-driver 连接可能错误。
+
+**核心：sequence 出问题，本质都是"握手链路某一环断了"——按现象查对应环节。**
+
+**现象一：driver 收不到 item**（10 步排查，最经典的是 ③⑧①）
+
+1. 确认 `body()` 是否执行——没执行 = sequence 没被正确启动；
+2. 确认 `start()` 传入的 sequencer 不是 null；
+3. 确认 driver 的 `seq_item_port` 已连接 sequencer；
+4. 确认 REQ 参数类型一致；
+5. 确认 driver 进入了 `get_next_item()`；
+6. 检查其他 sequence 是否持有 lock/grab（被独占卡住）；
+7. 检查当前 sequence 的 `is_relevant()`；
+8. 检查前一个 item 是否漏掉 `item_done()`（**经典：上一个没交差，下一个卡住**）；
+9. 检查 phase 是否已结束并杀死 sequence；
+10. 打开 sequencer arbitration trace（看谁在抢）。
+
+**现象二：sequence 卡在 `finish_item()`**（finish_item 要等 item_done，卡住 = item_done 没回来，往 driver 侧查）
+
+- driver 可能没有运行；
+- driver 可能没有调用 `item_done()`；
+- driver 可能在等待永远不会到来的接口条件（DUT 没响应）；
+- sequencer-driver 连接可能错误；
 - 请求类型转换可能失败。
-当 response 错位：
-- 检查 driver 是否调用 `rsp.set_id_info(req)`。
-- 检查是否复用了正在被处理的 rsp 对象。
-- 检查多个并发 sequence 是否都在消费自己的 response。
-- 检查 response handler 和 `get_response()` 是否混用。
+
+**现象三：response 错位**（路由问题）
+
+- 检查 driver 是否调用 `rsp.set_id_info(req)`（没调 = 路由错误）；
+- 检查是否复用了正在被处理的 rsp 对象；
+- 检查多个并发 sequence 是否都在消费自己的 response；
+- 检查 response handler 和 `get_response()` 是否混用（双重消费）；
 - 检查 RSP 模板类型是否一致。
-
----
-
 ## 本章总结（6.1-6.8）
 ### 学习重点排序
 | 优先级 | 必须掌握 |
