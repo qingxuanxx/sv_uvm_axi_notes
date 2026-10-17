@@ -64,7 +64,6 @@
 - 字节跳动 · 数字IC验证 · 校招 · 一面（UVM 整体框架讲解）
 - 字节跳动 · 数字IC验证 · 校招 · SOC方向（环境整体架构）
 - 芯原 · 数字IC验证 · 校招（UVM 验证环境的整体架构）
-- 乐鑫科技 · 数字IC验证 · 校招 · 笔试（driver、monitor、agent、scoreboard 四大组件工作原理）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q12-Q13、Q17、Q18（对应题目：Agent 包含哪些组件；sequencer 和 driver 是什么；monitor 与 scoreboard 的区别）
 
 **考点**
@@ -433,7 +432,6 @@ set 和 get 要能对上，需要**四个条件同时满足**，缺一个 get �
 
 **题目来源**
 
-- 乐鑫科技 · 数字IC验证 · 校招 · 笔试（uvm_component 生命周期）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q54、Q55（对应题目：什么是 phasing；UVM 组件有哪些 phase）
 
 **考点**
@@ -465,7 +463,6 @@ component 的生命周期由 **UVM 的 phase 机制**管理，分**构建、运�
 **题目来源**
 
 - 某TPU公司 · 数字IC验证 · 校招 · 面经（对 TLM 端口 port、export、import 的理解）
-- 平头哥 · 数字IC设计验证 · 实习 · 一面（对 TLM 端口的了解与详细介绍）
 - 通用 · 数字IC验证 · 实习 · 基础面经（TLM 通信：port / export / imp / analysis_port）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q4（对应题目：什么是 TLM port 和 export）
 
@@ -532,20 +529,17 @@ tlm_fifo 本质是组件之间的"中间仓库"：发送方把 transaction 存�
 **题目来源**
 
 - 中兴通讯 · 数字IC验证 · 校招 · 领军计划（耗时与不耗时 phase 的区分）
-- 海光 · 数字IC验证 · 校招 · NoC方向（UVM 核心 phase 的分类与简要介绍）
 - 蔚来 · AI计算芯片验证 · 校招 · 一面（uvm phase 机制完整分类以及可放置延时的 phase）
 - 泰凌微 · 数字IC验证 · 校招 · 一面二面（uvm phase 机制）
 - 行云集成电路 · 数字IC验证 · 实习（task phase 和 function phase 的理解、属于 task phase 的类型）
 - 国科微 · 数字IC验证 · 实习（静态 phase 和动态 phase 区别）
 - 韬润 · 数字IC验证 · 实习（uvm 包含哪些 phase）
-- 平头哥 · 数字IC设计验证 · 实习 · 一面（UVM 的 phase 机制）
 - 昆仑芯 · 数字IC验证 · 秋招 · 二面（phase 机制；各 phase 工作内容）
 - 思朗 · 数字IC验证 · 校招（UVM：phase 机制）
 - 芯动科技 · 数字IC验证 · 校招 · 一面（phase 机制）
 - 小米 · 数字IC验证 · 秋招 · 一面（phase 机制，举例 factory 特性）
 - 小米 · ASIC验证 · 实习（UVM phase 机制的详细讲解）
 - ArmChina · 数字IC设计验证 · 校招 · 一面（UVM 各类机制：factory、config、phase）
-- 乐鑫科技 · 数字IC验证 · 校招 · 笔试（phase：阶段机制）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q55（对应题目：UVM 组件有哪些 phase；run_phase 有哪些子 phase）
 
 注：其中「phase 机制」条目是面试里笼统提到 phase 的场次，未细分到分类、顺序或 objection，统一归到本题。
@@ -746,12 +740,10 @@ objection 是 UVM 用来**控制 task phase 何时结束**的机制，本质是�
 
 - 平头哥 · 数字IC验证 · 校招 · 一面（凉经）（seq.start() 与 start_item...end_item 的差异）
 - 通用 · 数字IC验证 · 实习 · 面试题汇总（UVM 中 sequence 的启动机制）
-- 太初 · 数字IC验证 · 校招 · 一面（sequence 启动方式）
 - 昆仑芯 · 数字IC验证 · 秋招 · 二面（sequence 启动方法）
 - 昆仑芯 · 数字IC验证 · 校招 · 二面（sequence 启动方式，项目中的实际使用案例）
 - 小米 · 数字IC验证 · 秋招 · 一面（sequence 启动方式、优缺点）
 - 中兴通讯 · 数字IC验证 · 校招 · 领军计划（Sequence 启动方式）
-- 乐鑫科技 · 数字IC验证 · 校招 · 笔试（sequence：启动方式）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q20、Q23（对应题目：运行一个 sequence 需要哪些步骤；start 是阻塞还是非阻塞）
 
 **考点**

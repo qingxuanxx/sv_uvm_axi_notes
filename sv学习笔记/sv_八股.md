@@ -90,7 +90,6 @@
 - 泰凌微 · 数字IC验证 · 校招 · 一面（logic 与 bit 的核心区别）
 - 泰凌微 · 数字IC验证 · 实习（logic 与 bit 的区别）
 - 豪威科技 · 数字IC验证 · 校招 · 一面（四值逻辑 vs 二值逻辑：初值问题）
-- 平头哥 · 数字IC验证 · 秋招 · 笔试（bit/int/logic/byte 差异，检测 x 态传播用哪个类型）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第4章 Q19（对应题目：bit 与 logic 数据类型）
 
 **考点**
@@ -257,7 +256,6 @@ if (pending.exists(addr))
 - ArmChina · 数字IC设计验证 · 校招 · 三面（task 和 function 区别）
 - 泰凌微 · 数字IC验证 · 实习（task 与 function 的区别、常用数据类型转换函数）
 - 汇顶科技 · 数字IC验证 · 校招 · 一面（function 和 task 的区别）
-- 芯动科技 · 数字IC验证 · 校招 · 笔试（task 和 function 的关系）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第4章 Q17（对应题目：task 与 function 的区别）
 
 **考点**
@@ -331,7 +329,6 @@ int result = calc(.b(4), .a(3));       // 按名传参
 
 - 泰凌微 · 数字IC验证 · 校招 · 一面（interface 的作用与使用场景）
 - 乐鑫科技 · 数字IC验证 · 校招 · 一面（interface 和 DUT 连接）
-- 乐鑫科技 · 数字IC验证 · 校招 · 笔试（interface 接口基础用法）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第4章 Q41（对应题目：接口 interface）
 
 **考点**
@@ -664,7 +661,6 @@ end join
 **题目来源**
 
 - 豪威科技 · 数字IC验证 · 校招 · 一面（fork_join_none 代码题，分析输出结果）
-- 沐曦 · 数字IC验证 · 校招 · 笔试（fork-join_none 线程打印输出，缺 automatic 时异常）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第4章 Q60、Q61（对应题目：线程中的共享变量陷阱；fork 内嵌 for 循环产生几个并行进程）
 
 **考点**
@@ -819,7 +815,6 @@ b.print();
 - 地平线 · 数字IC验证 · 校招（功能覆盖率与代码覆盖率区别）
 - 大疆 · 数字IC验证 · 校招（多种覆盖率区别）
 - 某TPU公司 · 数字IC验证 · 校招（代码覆盖率与功能覆盖率的关联）
-- 乐鑫科技 · 数字IC验证 · 校招 · 笔试（代码/分支/条件/功能覆盖率的定义与提升方法）
 - 兆易创新 · 数字IC验证 · 校招（code coverage 的组成）
 - 通用 · 数字IC验证 · 实习 · 面试题汇总（功能覆盖率与代码覆盖率的细分类型）
 - 通用 · 数字IC验证 · 实习 · 基础面经（功能覆盖率、代码覆盖率、断言覆盖率）
@@ -939,7 +934,6 @@ coverpoint state {
 
 **题目来源**
 
-- 海光 · 数字IC验证 · 校招 · NoC方向（Checkpoint 中 cross 功能点出现指数级爆炸的优化方法）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q113、Q114（对应题目：交叉覆盖率 cross；cross 创建了多少个 bins）
 
 **考点**
