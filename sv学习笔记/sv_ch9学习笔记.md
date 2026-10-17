@@ -85,7 +85,6 @@ always @(posedge clk or negedge reset_l) begin   // [1] 异步复位 D 触发器
     end
 end
 ```
-```
 也就是说，代码覆盖率可能只看到 `q <= d` 和 `q_l <= !d` 这些语句被执行过，却看不出“复位后进入已知状态”这个设计意图根本没有实现。
 
 ---
@@ -161,8 +160,6 @@ covergroup FifoCov;                       // [1] 覆盖组：统计 FIFO 状态�
     coverpoint full;
 endgroup
 ```
-endgroup
-```
 这个覆盖模型能回答“FIFO 是否测到空、满、半满等关键状态”，比统计所有 `rd_ptr`/`wr_ptr` 组合更有意义。
 
 更完整一点看，FIFO 的验证计划通常关心的是“状态”和“状态转换”。
@@ -233,9 +230,6 @@ covergroup AddrCov;
     }
 endgroup
 ```
-    }
-endgroup
-```
 这样报告能直接告诉你 boot ROM、SRAM、IO 区和边界地址有没有被访问过，后续可以据此修改约束或补定向测试。
 
 地址覆盖的重点不是“地址值越多越好”，而是“设计规定的区域有没有被测到”。
@@ -263,10 +257,6 @@ covergroup BusAddrCov;
 
     coverpoint write;
     cross addr, write;                              // [4] cross：组合覆盖率
-endgroup
-```
-    coverpoint write;
-    cross addr, write;
 endgroup
 ```
 如果覆盖报告显示 `illegal` 没有命中，说明没有测试非法地址访问；如果 `sram_end` 没有命中，说明边界地址还没测到。

@@ -688,7 +688,6 @@ virtual class A;                       // [1] 抽象类：不能直接 new
     pure virtual function void f();    // [2] 纯虚函数：只有声明，子类必须实现
 endclass
 ```
-```
 `A` 不能直接 `new()`。如果某个子类没有实现 `f()`，这个子类也仍然是抽象的，不能实例化。
 
 ```systemverilog
@@ -698,8 +697,6 @@ endclass
 
 function void B::f();                  // [2] 类外实现（类名::方法名）
     $display("B::f");
-endfunction
-```
 endfunction
 ```
 `B` 可以直接 `new()`，因为 `f()` 有具体实现。
