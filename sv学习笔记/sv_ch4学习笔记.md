@@ -644,71 +644,13 @@ endprogram
 
 ## 4.12 本章总结
 
-### 4.12.1 知识链
+### 4.12.1 学习重点排序
 
-```
-DUT 与 Testbench 分离
-  → interface 封装连接信号
-    → modport 区分 DUT/TB/Monitor 方向
-      → clocking block 解决同步采样和驱动时序
-        → program block 避免调度竞争
-          → assertion 检查协议合法性
-            → top 统一连接
-              → final block 做结束总结
-```
-
-### 4.12.2 关键概念速查
-
-| 概念 | 英文 | 作用 |
-|------|------|------|
-| 待测设计 | DUT | 被验证的设计 |
-| 测试平台 | Testbench | 产生激励、检查输出 |
-| 接口 | Interface | 封装一组连接信号 |
-| 端口方向分组 | modport | 区分 DUT/TB/Monitor 视角 |
-| 时钟块 | Clocking Block | 规定同步驱动和采样时序 |
-| 程序块 | Program Block | 在 Reactive 区域运行 testbench |
-| 断言 | Assertion | 检查信号或协议是否满足条件 |
-| 引用端口 | ref | 变量引用式端口 |
-| final 块 | final block | 仿真结束前执行总结代码 |
-
-### 4.12.3 你写的 ch4 代码对照表
-
-| 文件 | 对应章节 | 知识点 |
-|------|---------|--------|
-| `1.sv` | 4.1, 4.3 | 传统 module 端口、竞争冒险演示 |
-| `2.sv` | 4.2 | interface + modport（DUT/TB 视角） |
-| `3.sv` | 4.3, 4.4 | 接口中封装 task、`#1step` 解决竞争 |
-| `4.sv` | 4.3.5 | program 块 + reactive 区域 |
-| `5.sv` | 4.3, 4.4 | clocking block、`input #1step`/`output #1ns` |
-| `6.sv` | 4.6 | `$unit`/`$root`/`.*` 隐式连接 |
-| `7.sv` | 4.8 | SVA 并发断言、`property`/`|->`/`disable iff` |
-| `8.sv` | 4.11 | `final` 块、`$urandom_range`、program 自动结束 |
-
-### 4.12.4 最重要的 10 条规则
-
-| # | 规则 |
-|---|------|
-| 1 | 用 `interface` 替代分散的信号连线，减少出错 |
-| 2 | 用 `modport` 给信号分组并指定方向 |
-| 3 | 用 `clocking block` 消除时序竞争 |
-| 4 | 测试代码放在 `program` 块中，声明为 `automatic` |
-| 5 | 时钟发生器永远放在 `module` 中，不要放在 `program` 中 |
-| 6 | 同步信号通过 `clocking block` 用 `<=` 驱动 |
-| 7 | program 不能用 `always`，用 `initial forever` 代替 |
-| 8 | 并发断言放在 `interface` 中，所有模块自动受保护 |
-| 9 | 使用 `$root` 绝对路径避免跨模块引用歧义 |
-| 10 | `final` 块用于打印总结报告，保证一定会执行 |
-
-### 4.12.5 最容易错的点
-
-| 易错点 | 正确理解 |
-|--------|---------|
-| interface 写在 module 内部 | 不推荐，可能变成局部定义 |
-| modport 方向是固定信号方向 | 错，是相对于使用者的方向 |
-| 有了 clocking block 还直接写 `bus.request` | 同步信号应写 `bus.cb.request` |
-| `#0`/`#1` 可以稳定解决竞争 | 不可靠，应使用 clocking block |
-| program 中可以写 `always` | 不可以，用 `initial forever` 替代 |
-| 时钟发生器放在 program 中 | 错，应放在 module 中 |
-| `.*` 总是安全的 | 只有端口名、信号名、类型匹配时才安全 |
-| ref 等价于 inout | 错，ref 是变量引用，inout 是双向线网 |
-| final 可以等待时钟 | 错，final 不能包含延时或事件等待 |
+| 优先级 | 必须掌握 |
+|:---:|------|
+| 🔴 高 | `interface` 封装连接信号、`modport` 给信号分组并指定方向 |
+| 🔴 高 | `clocking block` 消除采样与驱动竞争（`input #1step` / `output #1ns`） |
+| 🔴 高 | `program` 块：在 reactive 区域运行、不能写 `always`、时钟发生器必须放 `module` |
+| 🟡 中 | 并发断言放在 `interface` 中：`property` / `\|->` / `disable iff` |
+| 🟡 中 | `$root` / `$unit` / `.*` 隐式连接的适用边界 |
+| 🟢 进阶 | `final` 块做结束总结（不能等待时钟）、`ref` 端口 vs `inout` |

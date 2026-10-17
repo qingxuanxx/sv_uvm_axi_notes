@@ -1339,6 +1339,7 @@ rm.print();
 
 ## 本章总结（7.1-7.8）
 ### 学习重点排序
+
 | 优先级 | 必须掌握 |
 |--------|----------|
 | 🔴 高 | `uvm_reg_block -> uvm_reg -> uvm_reg_field` 建模层次 |
@@ -1349,57 +1350,3 @@ rm.print();
 | 🟡 中 | HDL path、层次 block、多 field 与 memory |
 | 🟡 中 | auto predict 与 `uvm_reg_predictor` |
 | 🟢 进阶 | 内建 sequence、随机寄存器配置和宽度扩展 |
-### 最重要的 10 条规则
-| # | 规则 | 说明 |
-|---|------|------|
-| 1 | 寄存器总宽度与 field 有效宽度分开建模 | `uvm_reg::new` 填总宽度，field 填有效位 |
-| 2 | reg/block 的 `build()` 必须手工调用 | 它不是 component phase |
-| 3 | 模型完成后调用 `lock_model()` | 锁定后不再修改结构 |
-| 4 | 前门访问必须绑定 map、sequencer 和 adapter | 三者缺一不可 |
-| 5 | adapter 的 `bus2reg()` 必须回填 status 和读数据 | 否则访问结果和镜像不可信 |
-| 6 | 后门访问必须正确配置 HDL path | 先用 path sequence 检查 |
-| 7 | `set()` 只改 desired，`update()` 才可能写 DUT | `get()` 也不会访问 DUT |
-| 8 | `predict()` 只改模型，`mirror()` 会读取 DUT | 一个预测，一个校验/同步 |
-| 9 | 使用 predictor 时通常关闭 auto predict | 避免同一 transaction 被预测两次 |
-| 10 | 特殊寄存器必须从通用内建测试中排除 | 计数器、RC、W1C、volatile 不能盲测 |
-### 最容易错的点
-| 易错点 | 正确理解 |
-|--------|----------|
-| RAL 是寄存器 RTL 的复制品 | 错，它是验证侧抽象模型，不会自动实时同步 DUT |
-| `get()` 会读取 DUT | 错，只返回 desired value |
-| `get_mirrored_value()` 一定等于 DUT 当前值 | 错，它只是模型最近预测的值 |
-| `set()` 后 DUT 已改变 | 错，还需 `update()` 或显式 write |
-| 后门 write 与 poke 完全相同 | 错，write 强调寄存器写语义，poke 直接 deposit |
-| RO 字段绝对不能修改 | 前门不能写，但后门 poke 仍可能直接修改 RTL 对象 |
-| map 中 offset 就是绝对物理地址 | 不一定，还要叠加 map 和子 block 基地址 |
-| 开启 auto predict 后能看到所有 master | 错，只能自动跟踪经相应 RAL 路径发起的访问 |
-| memory 与 reg 一样维护镜像 | 错，memory 不维护每个单元的 desired/mirrored value |
-| 内建 sequence 可以无条件全跑 | 错，特殊寄存器必须设置排除项 |
-### 常用 API 速查
-| API | 是否访问 DUT | 主要作用 |
-|-----|--------------|----------|
-| `read()` | 是 | 前门或后门读取并更新模型 |
-| `write()` | 是 | 前门或后门写入并更新模型 |
-| `peek()` | 是 | 后门直接观察 |
-| `poke()` | 是 | 后门直接设置 |
-| `get()` | 否 | 读取 desired value |
-| `set()` | 否 | 修改 desired value |
-| `update()` | 可能 | 把 desired 写到 DUT |
-| `mirror()` | 是 | 读取 DUT，同步或比较 mirror |
-| `predict()` | 否 | 人工更新 desired/mirrored |
-| `reset()` | 否 | 把模型恢复为声明的复位值 |
-| `randomize()` | 否 | 随机化可写 field 的 desired value |
-最终记忆：
-```text
-field 描述位
-reg 描述寄存器
-block 组织层次
-map 负责地址
-adapter 负责协议转换
-frontdoor 验证真实总线
-backdoor 提供快速直达
-desired 表示想写什么
-mirrored 表示模型认为 DUT 是什么
-predict 更新模型
-mirror 读取并检查 DUT
-```

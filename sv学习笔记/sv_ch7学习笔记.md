@@ -539,32 +539,7 @@ endprogram
 
 ## 7.8 本章总结
 
-### 7.8.1 记忆口诀
-
-```
-fork 开线程：
-    join      等全部
-    join_any  等一个
-    join_none 不等待
-
-disable 停线程：
-    disable label      停指定块
-    disable fork       停当前派生线程
-    disable task_name  慎用！误杀所有同名 task
-
-event 做通知：
-    ->e                 触发
-    @e                  等下一次
-    wait(e.triggered)   当前时间步触发过也算
-
-semaphore 管资源：
-    get 拿钥匙，put 还钥匙，try_get 尝试拿
-
-mailbox 传事务：
-    put 放，get 取，空则 get 等，满则 put 等
-```
-
-### 7.8.2 学习重点排序
+### 7.8.1 学习重点排序
 
 | 优先级 | 必须掌握内容 |
 |:---:|------|
@@ -574,13 +549,3 @@ mailbox 传事务：
 | 🔴 | `event` 的 `@e` 与 `wait(e.triggered())` 区别 |
 | 🟡 | `semaphore` 用于互斥访问共享资源 |
 | 🟡 | `mailbox` 用于线程间传递 transaction |
-
-### 7.8.3 最容易错的 5 个点
-
-| # | 易错点 | 正确做法 |
-|---|--------|---------|
-| 1 | `join_none` 后父线程不等待 | 需要同步时用 `wait fork` |
-| 2 | 循环变量在 fork 内用引用 | 每轮创建 `automatic int k = i;` 副本 |
-| 3 | `@event` 错过已触发事件 | 用 `wait(e.triggered())` |
-| 4 | mailbox 循环外 new 对象 | 循环内 `new()` 新对象再 `put` |
-| 5 | semaphore get/put 不成对 | 异常路径也要 `put`，否则永久阻塞 |

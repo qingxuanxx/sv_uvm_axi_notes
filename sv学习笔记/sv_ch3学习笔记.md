@@ -511,69 +511,14 @@ endmodule
 
 ## 3.8 本章总结
 
-### 3.8.1 知识链
+### 3.8.1 学习重点排序
 
-```
-for / break / continue / do-while
-  → task / function / void function
-    → C 风格参数 + ref / const ref
-      → 缺省参数值 + 命名参数传递
-        → return 提前返回
-          → automatic 动态存储
-            → timeunit / $timeformat / $realtime
-```
-
-### 3.8.2 关键概念速查表
-
-| 概念 | 作用 |
-|------|------|
-| `for (int i=0; ...)` | 循环变量作用域局部化 |
-| `continue` / `break` | 跳过本轮 / 终止循环 |
-| `function void` | 无返回值且不消耗时间，可被所有子程序调用 |
-| `ref` | 引用传递，零拷贝，立即可见 |
-| `const ref` | 只读引用，零拷贝 + 安全 |
-| 缺省参数值 | 新调用不破坏已有代码 |
-| 命名参数 (`.name`) | 只指定需要的参数 |
-| `return` | 提前退出 task/function |
-| `automatic` | 每次调用独立存储，多线程安全 |
-| `$realtime` | 精确时间，保留小数 |
-
-### 3.8.3 你写的 ch3 代码对照表
-
-| 文件 | 对应章节 | 知识点 |
-|------|---------|--------|
-| `1.sv` | 3.1 | `for` 循环声明变量、`break`/`continue`、`do-while`、块标签 |
-| `2.sv` | 3.2 | task / function / void function |
-| `3.sv` | 3.4 | 值传递、`const ref`、`ref`、缺省参数、命名参数 |
-| `4.sv` | 3.5 | task/function 中 `return` 提前返回 |
-| `5.sv` | 3.6 | `automatic` 动态存储 vs 静态存储 |
-| `6.sv` | 3.7 | `timeunit`/`timeprecision`、`$timeformat`、`$realtime` vs `$time` |
-
-### 3.8.4 最重要的 10 条规则
-
-| # | 规则 |
-|---|------|
-| 1 | `for` 循环变量直接在循环头声明：`for (int i=0; ...)` |
-| 2 | 不消耗时间的调试子程序用 `function void`，不要用 `task` |
-| 3 | 传递大数组用 `const ref`（只读）或 `ref`（读写），避免值拷贝 |
-| 4 | 始终明确写出所有参数的类型和方向，不要依赖默认继承 |
-| 5 | 用 `-1` 作为缺省值来区分"调用时是否指定了该参数" |
-| 6 | 命名参数传递让多参数调用清晰可读：`.c(5)` |
-| 7 | `return` 让 task/function 提前退出，减少 else 嵌套 |
-| 8 | `program` 声明为 `automatic`，避免多线程变量覆盖 |
-| 9 | 不在声明语句中初始化变量，或分开声明和赋值 |
-| 10 | 精确时间用 `$realtime`，别用 `$time` |
-
-### 3.8.5 最容易错的点
-
-| 易错点 | 正确理解 |
-|--------|---------|
-| function 可以等待时钟 | 错，function 不能消耗时间 |
-| 不耗时 task 随便写 | 更推荐写成 `function void` |
-| 参数默认规则无害 | 错，可能继承前一个参数的方向和类型 |
-| 大数组直接 input 传参 | 会复制数组，性能差 |
-| `ref` 和 `output` 一样 | 错，`ref` 是实时引用，`output` 结束时才更新 |
-| 局部变量声明时初始化总是安全 | 错，静态存储下可能只初始化一次 |
-| 多线程调用 task 不需要 automatic | 错，可能共享参数导致覆盖 |
-| `time` 能保存小数时间 | 错，`time` 是整数 |
-| `$time` 和 `$realtime` 一样 | 错，`$realtime` 保留小数 |
+| 优先级 | 必须掌握 |
+|:---:|------|
+| 🔴 高 | task / function / `function void` 的区别：能不能消耗时间、能被谁调用 |
+| 🔴 高 | 循环变量在循环头声明：`for (int i = 0; ...)` |
+| 🔴 高 | `ref` / `const ref` / `output` 的区别：零拷贝、实时可见 |
+| 🟡 中 | 缺省参数值与命名参数传递 `.c(5)` |
+| 🟡 中 | `return` 让 task/function 提前退出 |
+| 🟡 中 | `automatic` 动态存储 vs 静态存储；`program automatic` |
+| 🟢 进阶 | `timeunit` / `timeprecision`、`$timeformat`、`$realtime` vs `$time` |

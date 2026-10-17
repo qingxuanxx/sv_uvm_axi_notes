@@ -77,7 +77,7 @@ flowchart LR
 ```
 这个框图说明两条并行路径。
 **DUT 路径**
-DUT 路径是真实硬件路径：transaction 先被 driver 翻译成引脚信号，DUT 处理后再由 output monitor 重新采样成 transaction。  
+DUT 路径是真实硬件路径：transaction 先被 driver 翻译成引脚信号，DUT 处理后再由 output monitor 重新采样成 transaction。
 这条路用来回答：“DUT 实际做出了什么结果？”
 
 ```mermaid
@@ -90,7 +90,7 @@ flowchart LR
     F --> G[实际 transaction]
 ```
 **期望路径**
-期望路径是软件预测路径：同一个输入 transaction 不经过 DUT，而是交给 reference model 计算正确答案。  
+期望路径是软件预测路径：同一个输入 transaction 不经过 DUT，而是交给 reference model 计算正确答案。
 这条路用来回答：“理论上应该得到什么结果？”
 
 ```mermaid
@@ -111,7 +111,7 @@ flowchart LR
 | monitor | 有，监控实际输入 | 有，监控实际输出 |
 | 工作模式 | active | passive |
 
-输入 agent 既产生驱动，也监测真正送到 DUT 的内容。输出 agent 只监测 DUT 输出，不应主动驱动输出端。 
+输入 agent 既产生驱动，也监测真正送到 DUT 的内容。输出 agent 只监测 DUT 输出，不应主动驱动输出端。
 下面这张图把完整平台中的激励、实际结果和期望结果放在一起：
 
 ```mermaid
@@ -134,7 +134,7 @@ flowchart TD
     RESULT -->|"不一致"| FAIL["FAIL"]
 ```
 
-读图时可以抓住两条主线：上方是“激励如何进入 DUT”，下方是“期望结果和实际结果如何产生”。 
+读图时可以抓住两条主线：上方是“激励如何进入 DUT”，下方是“期望结果和实际结果如何产生”。
 scoreboard 自己不产生数据，它只负责接收 expected 与 actual，然后判断 DUT 的行为是否正确。
 
 ---
@@ -1507,6 +1507,7 @@ endfunction
 
 ## 本章总结（2.1-2.5）
 ### 学习重点排序
+
 | 优先级 | 必须掌握 |
 |--------|----------|
 | 🔴 高 | component/object 的区别及两类注册宏 |
@@ -1514,24 +1515,3 @@ endfunction
 | 🔴 高 | virtual interface 与 config_db 的传递方式 |
 | 🔴 高 | sequence、sequencer、driver 的 item 握手 |
 | 🟡 中 | agent、model、scoreboard 和 TLM 数据流 |
-### 最重要的 10 条规则
-| # | 规则 | 说明 |
-|---|------|------|
-| 1 | component 用 component_utils | object 用 object_utils |
-| 2 | UVM 类型通过 type_id::create 创建 | factory override 才能生效 |
-| 3 | 子 component 在 build_phase 创建 | build 结束前完成 UVM 树 |
-| 4 | TLM 端口在 connect_phase 连接 | 创建与连接分离 |
-| 5 | objection 在首个耗时语句前 raise | 否则 phase 可能提前结束 |
-| 6 | vif 的类型、路径和字段名都要匹配 | 任一项错误都会 get 失败 |
-| 7 | active agent 有 sqr/driver/monitor | passive agent 通常只有 monitor |
-| 8 | monitor 只观察接口 | 不应驱动 DUT 信号 |
-| 9 | get_next_item 后必须 item_done | 完成 sequence-driver 握手 |
-| 10 | 用 +UVM_TEST_NAME 选择 test | 切换用例无需修改 top_tb |
-### 最容易错的点
-| 易错点 | 正确理解 |
-|--------|----------|
-| main_phase 有代码就会执行完 | 错，没有 objection 可能立即结束 |
-| transaction 是 UVM 树结点 | 错，它是 uvm_object |
-| analysis_port.write 会等待接收方 | 错，它是非阻塞广播 |
-| sequence 位于 sequencer 树下 | 错，sequence 不进入 component 树 |
-| field 宏顺序不影响数据 | 错，pack/unpack 顺序可能随之变化 |

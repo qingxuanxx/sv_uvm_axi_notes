@@ -1759,6 +1759,7 @@ drive(req);               // [2] 驱动
 - 检查 RSP 模板类型是否一致。
 ## 本章总结（6.1-6.8）
 ### 学习重点排序
+
 | 优先级 | 必须掌握 |
 |--------|----------|
 | 🔴 高 | sequence、sequencer、driver 的职责边界 |
@@ -1769,42 +1770,3 @@ drive(req);               // [2] 驱动
 | 🟡 中 | 多 sequence 仲裁、优先级、lock 与 grab |
 | 🟡 中 | 嵌套 sequence、sequence 随机化与继承 |
 | 🟢 进阶 | `is_relevant/wait_for_relevant` 与 sequence library |
-### 最重要的 10 条规则
-| # | 规则 | 说明 |
-|---|------|------|
-| 1 | sequence 产生激励，driver 只负责驱动 | 不因测试场景修改稳定 driver |
-| 2 | `start_item` 与 `finish_item` 必须成对 | 获得授权后尽快发送 |
-| 3 | `get_next_item` 与 `item_done` 必须成对 | 漏掉会让后续 sequence 卡住 |
-| 4 | 三处 REQ/RSP 模板类型必须匹配 | sequence、sequencer、driver 保持一致 |
-| 5 | 复杂宏问题先展开成基础调用调试 | 明确 create、randomize、grant、send 顺序 |
-| 6 | lock/grab 后必须释放 | 独占范围要短，不在持锁时长期等待 |
-| 7 | virtual sequence 只协调，不直接驱动 DUT | 子 sequence 启动在真实 sequencer 上 |
-| 8 | 顶层统一控制 objection | 子 sequence 保持可组合性 |
-| 9 | driver 返回 rsp 时复制请求 ID | 使用 `set_id_info(req)` 保证路由 |
-| 10 | 每个 response 都要被消费 | 防止 response queue 溢出 |
-### 最容易错的点
-| 易错点 | 正确理解 |
-|--------|----------|
-| sequence 是 component | 错，sequence 是 object，没有 component phase 层次 |
-| `uvm_do` 只等于 randomize | 错，它还涉及创建、仲裁、发送和完成等待 |
-| `finish_item` 返回表示 DUT 已处理完成 | 错，只表示 driver 已完成该 item 的握手 |
-| 高优先级 sequence 会永久独占 | 错，是否优先取决于仲裁模式，独占要用 lock/grab |
-| `grab` 可以中断正在驱动的 item | 错，只影响后续仲裁 |
-| 只重载 `is_relevant` 就够了 | 通常错，应同时设计 `wait_for_relevant` |
-| 子 sequence 都应该 raise objection | 错，通常由顶层 sequence 或 test 统一控制 |
-| virtual sequencer 要连接 driver | 错，它主要保存真实 sequencer 句柄 |
-| response 自动回到正确 sequence | 前提是正确保留 sequence ID 信息 |
-| 把 response queue 设成无限大就解决问题 | 错，只是掩盖没有消费 response 的设计缺陷 |
-### 一页复习表
-| 需求 | 首选方法 |
-|------|----------|
-| 发送一个随机 item | `uvm_do(req)` |
-| 给 item 增加内联约束 | `uvm_do_with(req, {...})` |
-| 随机化后修改字段 | `uvm_create` + randomize + `uvm_send` |
-| 精确观察握手 | `start_item` + randomize + `finish_item` |
-| 组合已有场景 | 嵌套 sequence |
-| 协调多个接口 | virtual sequence + virtual sequencer |
-| 一组 item 不被插入 | `lock/unlock` |
-| 紧急抢占后续仲裁 | `grab/ungrab` |
-| 暂时退出仲裁 | `is_relevant/wait_for_relevant` |
-| 获取执行结果 | response + `get_response` 或 handler |

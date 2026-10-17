@@ -1159,33 +1159,3 @@ end
 | 🟡 中 | blocking/nonblocking 接口方法的区别 |
 | 🟡 中 | FIFO 对 analysis 与 blocking_get 的桥接 |
 | 🟢 进阶 | 多 IMP 后缀、层次透传和端口数组 |
-
-### 最重要的 10 条规则
-
-| # | 规则 | 说明 |
-|---|------|------|
-| 1 | 先看谁发起调用，再选 PORT | 不按 transaction 方向判断 PORT |
-| 2 | PORT/EXPORT 只转发接口 | 最终处理必须由 IMP/component 实现 |
-| 3 | 高优先级端调用 connect | PORT -> EXPORT -> IMP |
-| 4 | 端口类型必须完整匹配 | 操作、阻塞属性和 transaction 类型都要一致 |
-| 5 | TLM 端口在 build_phase 创建 | connect_phase 只负责连接 |
-| 6 | nonblocking 方法必须是 function | 不能消耗仿真时间 |
-| 7 | analysis write 不能阻塞 | 重处理应放入 FIFO 或后续进程 |
-| 8 | 多个 analysis_imp 使用 imp_decl 后缀 | 后缀决定 write_xxx 方法名 |
-| 9 | scoreboard 多路同步优先考虑 FIFO | 接收者可主动控制节奏 |
-| 10 | analysis 订阅者默认只读 transaction | 修改前先 clone/copy |
-
-### 最容易错的点
-
-| 易错点 | 正确理解 |
-|--------|----------|
-| get 的数据流向 PORT，所以提供者应使用 PORT | 错，发起 get 的接收者使用 PORT |
-| PORT 可以作为连接终点 | 错，最终必须到 IMP |
-| EXPORT 自己实现 put/get | 错，EXPORT 主要负责透传 |
-| blocking_put 与 nonblocking_put 可直接互连 | 错，接口类型必须匹配 |
-| can_put 成功后 try_put 必然永远成功 | 不一定，状态可能变化，应检查返回值 |
-| analysis_port.write 会等待订阅者 | 错，它是 function 式广播 |
-| FIFO 的 analysis_export 一定是普通 EXPORT | 名字如此，但内部实现端本质包含 IMP |
-| peek 会消费队头数据 | 错，peek 保留 FIFO 内容 |
-| 多路 IMP 可以都实现同一个 write | 需要 imp_decl 后缀区分来源 |
-| FIFO 一定优于 IMP | 两者适用于不同复杂度和同步需求 |

@@ -861,7 +861,7 @@ level = env.i_agt.drv.get_report_verbosity_level();  // 查 driver 当前的阈�
 
 **只设置单个 component**
 
-`env.i_agt.drv.set_report_verbosity_level(UVM_HIGH);` 
+`env.i_agt.drv.set_report_verbosity_level(UVM_HIGH);`
 
 只影响 driver 一个组件。agent 里的 sqr、mon 不受影响。
 
@@ -889,7 +889,7 @@ env.i_agt.set_report_id_verbosity_hier(
 );
 ```
 **命令行设置（不改代码）**
-`<sim_command> +UVM_VERBOSITY=UVM_HIGH` 
+`<sim_command> +UVM_VERBOSITY=UVM_HIGH`
 
 全局生效，等价于把所有组件的阈值调到 HIGH。适合临时调试：
 
@@ -1068,8 +1068,8 @@ env.i_agt.drv.set_report_severity_id_action(
 
 | 方法 | 影响范围 | 代码 |
 |------|----------|------|
-| 按 severity | 所有 warning 出现就停 | `set_report_severity_action(UVM_WARNING, UVM_DISPLAY | UVM_STOP)` |
-| 按 severity + ID | 只有 "DRV_PROTOCOL" 的 warning 出现才停 | `set_report_severity_id_action(UVM_WARNING, "DRV_PROTOCOL", UVM_DISPLAY | UVM_STOP)` |
+| 按 severity | 所有 warning 出现就停 | `set_report_severity_action(UVM_WARNING, UVM_DISPLAY \| UVM_STOP)` |
+| 按 severity + ID | 只有 "DRV_PROTOCOL" 的 warning 出现才停 | `set_report_severity_id_action(UVM_WARNING, "DRV_PROTOCOL", UVM_DISPLAY \| UVM_STOP)` |
 
 用途：
 
@@ -1649,6 +1649,7 @@ endfunction
 
 ## 本章总结（3.1-3.5）
 ### 学习重点排序
+
 | 优先级 | 必须掌握 |
 |--------|----------|
 | 🔴 高 | uvm_component 继承自 uvm_object，但只有 component 组成 UVM 树 |
@@ -1656,24 +1657,3 @@ endfunction
 | 🔴 高 | config_db 的类型、context、路径、field name 和 value |
 | 🟡 中 | field automation 的宏、函数和控制标志 |
 | 🟡 中 | verbosity、severity、ID 与 action 的区别 |
-### 最重要的 10 条规则
-| # | 规则 | 说明 |
-|---|------|------|
-| 1 | 长期平台结构用 component | 临时数据和场景通常用 object |
-| 2 | transaction 继承 uvm_sequence_item | 便于使用 sequence 机制 |
-| 3 | create 的 name 决定 UVM 路径 | 变量名不决定实例路径 |
-| 4 | 子 component 的 parent 通常传 this | 传 null 会挂到 uvm_top |
-| 5 | 同一 parent 下实例名必须唯一 | 保证路径可唯一定位 |
-| 6 | 非协议控制字段使用 UVM_NOPACK | 防止错误进入线数据 |
-| 7 | report 三维度分别理解 | severity、verbosity、action 含义不同 |
-| 8 | component 内 set 优先用 this | 保留清晰的层次优先级 |
-| 9 | base_test 设默认值，具体 test 再覆盖 | 减少重复配置 |
-| 10 | config 异常先查真实路径再开 trace | 字符串错误不会被编译器发现 |
-### 最容易错的点
-| 易错点 | 正确理解 |
-|--------|----------|
-| uvm_object 与 component 并列 | 错，component 间接继承 object |
-| uvm_test_top 是真正树根 | 错，真正根是 uvm_top/uvm_root |
-| 跨层次 set 永远后写优先 | 错，build 阶段通常先比较层次 |
-| context 全写 root 更可靠 | 错，会丢失设置者层次信息 |
-| check_config_usage 报告项一定有错 | 不一定，某些配置可能尚未读取 |

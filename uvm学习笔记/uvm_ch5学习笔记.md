@@ -850,7 +850,7 @@ endtask
 流程：
 
 ```text
-最后一个 drop → total objection = 0 
+最后一个 drop → total objection = 0
             → 等待 drain_time (200ns)
             → 进入 post_main_phase
 ```
@@ -909,10 +909,10 @@ phase.drop_objection(
 
 **objection 沿树传播**
 ```text
-sequence raise → sequencer total +1 
-               → agent total +1 
-               → env total +1 
-               → test total +1 
+sequence raise → sequencer total +1
+               → agent total +1
+               → env total +1
+               → test total +1
                → uvm_top total +1
 ```
 
@@ -1102,33 +1102,3 @@ domain 是高级功能，普通单时钟、统一复位平台通常无需主动�
 | 🟡 中 | phase jump 的范围、清理与风险 |
 | 🟡 中 | phase/objection trace 和 timeout |
 | 🟢 进阶 | domain 对 run-time phase 的隔离 |
-
-### 最重要的 10 条规则
-
-| # | 规则 | 说明 |
-|---|------|------|
-| 1 | build_phase 只建 component 树 | connect_phase 再连接端口 |
-| 2 | 不依赖兄弟 component 的 phase 顺序 | 标准不保证可依赖的先后 |
-| 3 | 用户父类有逻辑时必须调用 super.phase | 保留基类行为 |
-| 4 | 耗时 phase 至少要有一个 objection | 否则可能 0 时间结束 |
-| 5 | raise/drop 必须成对且数量一致 | 防止提前结束或永久挂起 |
-| 6 | forever 组件不负责决定测试结束 | sequence 或明确完成者控制 |
-| 7 | 激励结束不等于检查完成 | 使用 drain time 或完成条件 |
-| 8 | jump 前清理 objection、FIFO 和队列 | 避免旧状态污染重入 phase |
-| 9 | 回归必须设置合理 timeout | 防止挂起无限占用资源 |
-| 10 | domain 只在确需独立动态阶段时使用 | 避免无谓复杂度 |
-
-### 最容易错的点
-
-| 易错点 | 正确理解 |
-|--------|----------|
-| 所有 phase 都 top-down | 错，build 特殊，其他 function 多为 bottom-up |
-| task phase 按树顺序逐个执行完 | 错，它们按顺序启动后并发运行 |
-| main_phase 有延时就会等待 | 错，还必须有 objection |
-| 每个 monitor 都要 raise | 错，同 phase 任一有效 objection 即可维持运行 |
-| run_phase 与 main_phase 顺序执行 | 错，它们属于并行 schedule |
-| driver forever 循环适合控制 objection | 错，drop 通常无法到达 |
-| 最后一个 uvm_do 后立即 drop 总是安全 | 错，DUT 和 scoreboard 可能仍有尾部数据 |
-| drain time 对所有 phase 通用 | 错，每个 phase 独立设置 |
-| jump 只影响调用 jump 的 component | 错，它影响当前 domain |
-| 新 domain 会隔离所有 function phase | 错，主要隔离动态 run-time phase |
