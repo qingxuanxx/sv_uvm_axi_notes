@@ -3,7 +3,7 @@
 ![最后更新](https://img.shields.io/badge/%E6%9C%80%E5%90%8E%E6%9B%B4%E6%96%B0-2026--10--17-blue)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 ![GitHub Stars](https://img.shields.io/github/stars/qingxuanxx/sv_uvm_axi_notes?style=flat&color=yellow)
-![面经](https://img.shields.io/badge/%E9%9D%A2%E7%BB%8F-100%E7%AF%87-orange)
+![面经](https://img.shields.io/badge/%E9%9D%A2%E7%BB%8F-118%E7%AF%87-orange)
 
 > 数字IC验证（Digital IC Verification）学习笔记：SystemVerilog、UVM、AMBA 总线协议 + 面试八股 + 校招面经。
 
@@ -14,7 +14,7 @@
 - 🔌 **AMBA 总线协议**：AXI、AXI-Lite、AXI-Stream、AHB、APB
 - 🎯 **面试八股**：SV / UVM / AXI 高频考点（SV 27 题 · UVM 30 题 · AXI 40 题，持续积累）
 - 📄 **面试书笔记**：《Cracking Digital VLSI Verification Interview》整理
-- 📝 **校招面经**：100 篇数字IC设计/验证面试经验（设计 5 篇 · 验证 95 篇，持续更新）
+- 📝 **校招面经**：118 篇数字IC设计/验证面试经验（设计 11 篇 · 验证 107 篇，持续更新）
 - 🧩 **场景设计**：模块验证方案、feature 拆分、测试点分解、故障排查（待完成）
 - ✍️ **笔试真题**：各公司笔试记录与高频考点归纳（待完成）
 - 🖥️ **手撕代码**：面经手撕题目整理（待完成）
@@ -62,9 +62,9 @@ sv_uvm_axi_notes/
 │   ├── 07_版本控制.md
 │   ├── 08_逻辑推理与谜题.md
 │   └── 09_非技术与行为面试.md
-├── 面经/              # 面试经验（100 篇）
-│   ├── 设计/          # 设计方向面经（5 篇）
-│   └── 验证/          # 验证方向面经（95 篇）
+├── 面经/              # 面试经验（118 篇）
+│   ├── 设计/          # 设计方向面经（11 篇）
+│   └── 验证/          # 验证方向面经（107 篇）
 ├── 手撕/              # 面经手撕代码题目整理（待完成）
 ├── 场景/              # 场景设计题（待完成）
 └── 笔试/              # 各公司笔试真题与考点积累（待完成）
