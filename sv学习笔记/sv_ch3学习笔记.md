@@ -84,7 +84,6 @@ function void print_state();   // [1] void function：不返回值，只做副�
     $display("@%0t: state = %s", $time, cur_state.name());  // [2] 打印枚举名
 endfunction
 ```
-```
 
 | 写成 task | 写成 void function |
 |----------|-------------------|
@@ -391,8 +390,6 @@ program automatic test;   // [1] automatic：task 内变量动态存储
             @(bus.addr);
         success = (bus.data == expected_data);  // [3] 检查数据是否匹配
     endtask
-endprogram
-```
 endprogram
 ```
 

@@ -1,6 +1,6 @@
 # SV、UVM、AMBA 总线学习笔记
 
-![最后更新](https://img.shields.io/badge/%E6%9C%80%E5%90%8E%E6%9B%B4%E6%96%B0-2026--09--14-blue)
+![最后更新](https://img.shields.io/badge/%E6%9C%80%E5%90%8E%E6%9B%B4%E6%96%B0-2026--10--17-blue)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 ![GitHub Stars](https://img.shields.io/github/stars/qingxuanxx/sv_uvm_axi_notes?style=flat&color=yellow)
 ![面经](https://img.shields.io/badge/%E9%9D%A2%E7%BB%8F-100%E7%AF%87-orange)
@@ -88,4 +88,4 @@ sv_uvm_axi_notes/
 - ARM AMBA 3 APB Protocol（IHI 0024）：https://developer.arm.com/documentation/ihi0024
 - ARM AMBA AHB Protocol Specification（IHI 0033）：https://developer.arm.com/documentation/ihi0033
 
-> 最后更新：2026-09-14
+> 最后更新：2026-10-17

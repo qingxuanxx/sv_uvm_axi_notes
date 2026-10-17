@@ -1,4 +1,4 @@
-﻿# UVM实战 第 4 章学习笔记：UVM 中的 TLM1.0 通信
+# UVM实战 第 4 章学习笔记：UVM 中的 TLM1.0 通信
 > **核心结论**：TLM1.0 用 transaction 和标准端口替代 component 之间的直接变量访问。PORT 表示操作发起端，EXPORT 用于转发接口，IMP 是最终实现端；判断连接方向时看控制流，判断 transaction 方向时看数据流。
 >
 > **记忆主线**：先确定 put/get/transport -> 再确定 blocking/nonblocking -> 发起者使用 PORT -> 层次透传使用 EXPORT -> 最终处理者使用 IMP 或 FIFO。
