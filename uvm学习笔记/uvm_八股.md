@@ -50,20 +50,20 @@
 
 **题目来源**
 
-- 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（Testbench 的基本组成）
-- 小米 · 数字IC验证 · 实习（简单 UVM 平台包含的组件；各组件之间的配合逻辑）
-- 海光 · 数字IC验证 · 校招（验证平台结构与数据流向）
-- 昆仑芯 · 数字IC验证 · 校招 · 一面（UVM 有哪些组件）
-- 地平线 · 数字IC验证 · 校招（UVM 的 Driver、Sequencer、Monitor、Agent 四大组件各自功能）
-- 蔚来 · AI计算芯片验证 · 校招 · 一面（验证环境组件与构建顺序）
-- 字节跳动 · AI芯片研发 · 校招 · 一面（sequence 和 monitor 的数据传输方式）
-- 昕原 · 数字IC验证 · 实习（monitor 和 scoreboard 之间的通信方式）
-- 集益威 · 数字IC验证 · 秋招（项目框架、各组件功能、组件之间的通信方式）
-- 集益威 · 数字IC验证 · 校招 · 一面（UVM 框架：验证环境的基本框架）
-- 中茵微 · 数字IC验证 · 校招 · 一面（UVM 环境整体框架结构）
-- 字节跳动 · 数字IC验证 · 校招 · 一面（UVM 整体框架讲解）
-- 字节跳动 · 数字IC验证 · 校招 · SOC方向（环境整体架构）
-- 芯原 · 数字IC验证 · 校招（UVM 验证环境的整体架构）
+- [达摩院-数字IC验证-校招-一面](<../面经/验证/达摩院-数字IC验证-校招-一面.md>)（凉经）（Testbench 的基本组成）
+- [小米-数字IC验证-实习-多轮面试](<../面经/验证/小米-数字IC验证-实习-多轮面试.md>)（简单 UVM 平台包含的组件；各组件之间的配合逻辑）
+- [海光-数字IC验证-校招-一至二面](<../面经/验证/海光-数字IC验证-校招-一至二面.md>)（验证平台结构与数据流向）
+- [昆仑芯-数字IC验证-校招-一面](<../面经/验证/昆仑芯-数字IC验证-校招-一面.md>)（UVM 有哪些组件）
+- [地平线-数字IC验证-校招-一至二面](<../面经/验证/地平线-数字IC验证-校招-一至二面.md>)（UVM 的 Driver、Sequencer、Monitor、Agent 四大组件各自功能）
+- [蔚来-AI计算芯片验证-校招-一面](<../面经/验证/蔚来-AI计算芯片验证-校招-一面.md>)（验证环境组件与构建顺序）
+- [字节跳动-AI芯片研发-校招-一面](<../面经/验证/字节跳动-AI芯片研发-校招-一面.md>)（sequence 和 monitor 的数据传输方式）
+- [昕原-数字IC验证-实习-多轮面试](<../面经/验证/昕原-数字IC验证-实习-多轮面试.md>)（monitor 和 scoreboard 之间的通信方式）
+- [集益威-数字IC验证-秋招-面试记录](<../面经/验证/集益威-数字IC验证-秋招-面试记录.md>)（项目框架、各组件功能、组件之间的通信方式）
+- [集益威-数字IC验证-秋招-一面](<../面经/验证/集益威-数字IC验证-秋招-一面.md>)（UVM 框架：验证环境的基本框架）
+- [中茵微-数字IC验证-校招-一面](<../面经/验证/中茵微-数字IC验证-校招-一面.md>)（UVM 环境整体框架结构）
+- [字节跳动-数字IC验证-秋招-一面](<../面经/验证/字节跳动-数字IC验证-秋招-一面.md>)（UVM 整体框架讲解）
+- [字节跳动-SoC验证-校招-面试记录](<../面经/验证/字节跳动-SoC验证-校招-面试记录.md>)（环境整体架构）
+- [芯原-数字IC验证-校招-一至三面](<../面经/验证/芯原-数字IC验证-校招-一至三面.md>)（UVM 验证环境的整体架构）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q12-Q13、Q17、Q18（对应题目：Agent 包含哪些组件；sequencer 和 driver 是什么；monitor 与 scoreboard 的区别）
 
 **考点**
@@ -100,7 +100,7 @@
 
 **题目来源**
 
-- 某公司 · 数字IC验证 · 校招 · 一面（monitor 采样数据流向，验证环境能否省略 monitor）
+- [某公司-数字IC验证-校招-一面](<../面经/验证/某公司-数字IC验证-校招-一面.md>)（monitor 采样数据流向，验证环境能否省略 monitor）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q18（对应题目：monitor 与 scoreboard 的区别）
 
 **考点**
@@ -126,11 +126,11 @@
 
 **题目来源**
 
-- 字节跳动 · 数字IC验证 · 实习 · 高频题（在 TB 中调用 run_test 后触发整个 UVM 平台执行的原理）
-- 墨芯 · 数字IC验证 · 校招（case package 中多 case 场景下，UVM 通过命令行指定启动 case 的底层原理）
-- 韬润 · 数字IC验证 · 实习（uvm 环境的启动流程）
-- 泰凌微 · 数字IC验证 · 校招 · 一面（UVM 环境的启动流程）
-- 泰凌微 · 数字IC验证 · 校招 · 一面二面（uvm 启动流程）
+- [字节跳动-数字IC验证-实习-题目汇总](<../面经/验证/字节跳动-数字IC验证-实习-题目汇总.md>) · 高频题（在 TB 中调用 run_test 后触发整个 UVM 平台执行的原理）
+- [墨芯-数字IC验证-秋招-一至二面](<../面经/验证/墨芯-数字IC验证-秋招-一至二面.md>)（case package 中多 case 场景下，UVM 通过命令行指定启动 case 的底层原理）
+- [韬润-数字IC验证-实习-一面](<../面经/验证/韬润-数字IC验证-实习-一面.md>)（uvm 环境的启动流程）
+- [泰凌微-数字IC验证-校招-一面](<../面经/验证/泰凌微-数字IC验证-校招-一面.md>)（UVM 环境的启动流程）
+- [泰凌微-数字IC验证-校招-一至二面](<../面经/验证/泰凌微-数字IC验证-校招-一至二面.md>)（uvm 启动流程）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q19（对应题目：run_test 如何启动 testbench）
 
 **考点**
@@ -156,7 +156,7 @@
 
 **题目来源**
 
-- 中茵微 · 数字IC验证 · 校招 · 一面（agent 支持的可配置选项，可配置设计的目的）
+- [中茵微-数字IC验证-校招-一面](<../面经/验证/中茵微-数字IC验证-校招-一面.md>)（agent 支持的可配置选项，可配置设计的目的）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q12-Q13、Q15-Q16（对应题目：Agent 可以包含哪些组件；如何把 agent 配置为 ACTIVE 或 PASSIVE）
 
 **考点**
@@ -184,12 +184,12 @@
 
 **题目来源**
 
-- 小米 · ASIC验证 · 实习（uvm_object 与 uvm_component 的区别）
-- 平头哥 · 数字IC验证 · 校招 · 一面（uvm_object 与 uvm_component 的区别）
-- 新凯来 · 数字IC验证 · 校招（uvm_object 与 uvm_component 的区别）
-- 集益威 · 数字IC验证 · 校招 · 一面（component 与 object 的区别）
-- 集益威 · 数字IC验证 · 秋招（component 和 object 的区别）
-- 字节跳动 · 数字IC验证 · 校招 · SOC方向（component 与 object 的区别）
+- [小米-ASIC验证-实习-一至二面](<../面经/验证/小米-ASIC验证-实习-一至二面.md>)（uvm_object 与 uvm_component 的区别）
+- [平头哥-数字IC验证-秋招-一面-01](<../面经/验证/平头哥-数字IC验证-秋招-一面-01.md>)（uvm_object 与 uvm_component 的区别）
+- [新凯来-数字IC验证-校招-多轮面试](<../面经/验证/新凯来-数字IC验证-校招-多轮面试.md>)（uvm_object 与 uvm_component 的区别）
+- [集益威-数字IC验证-秋招-一面](<../面经/验证/集益威-数字IC验证-秋招-一面.md>)（component 与 object 的区别）
+- [集益威-数字IC验证-秋招-面试记录](<../面经/验证/集益威-数字IC验证-秋招-面试记录.md>)（component 和 object 的区别）
+- [字节跳动-SoC验证-校招-面试记录](<../面经/验证/字节跳动-SoC验证-校招-面试记录.md>)（component 与 object 的区别）
 
 **考点**
 
@@ -228,7 +228,7 @@ uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_
 
 **题目来源**
 
-- 合见工软 · 数字IC验证 · 校招 · 一面（config_db 完成 set 后，若源变量发生变化，get 到的值是否同步更新）
+- [合见工软-数字IC验证-校招-一面](<../面经/验证/合见工软-数字IC验证-校招-一面.md>)（config_db 完成 set 后，若源变量发生变化，get 到的值是否同步更新）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q58、Q59（对应题目：uvm_config_db 是什么、用来做什么；get 和 set 方法怎么用）
 
 **考点**
@@ -255,7 +255,7 @@ uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_
 
 **题目来源**
 
-- 合见工软 · 数字IC验证 · 校招 · 一面（uvm_info 的消息等级分类）
+- [合见工软-数字IC验证-校招-一面](<../面经/验证/合见工软-数字IC验证-校招-一面.md>)（uvm_info 的消息等级分类）
 
 **考点**
 
@@ -293,10 +293,10 @@ uvm_component 和 uvm_object 不是并列关系，**uvm_component 继承自 uvm_
 
 **题目来源**
 
-- 豪威科技 · 数字IC验证 · 校招 · 一面（config_db 四个参数含义）
-- 通用 · 数字IC验证 · 实习 · 基础面经（config_db 机制）
-- 某TPU公司 · 数字IC验证 · 校招 · 面经（config_db 核心作用与各参数含义）
-- 泰凌微 · 数字IC验证 · 实习（config_db 的参数数量与含义）
+- [豪威科技-数字IC验证-校招-一面](<../面经/验证/豪威科技-数字IC验证-校招-一面.md>)（config_db 四个参数含义）
+- [通用-数字IC验证-实习-题目汇总](<../面经/验证/通用-数字IC验证-实习-题目汇总.md>) · 基础面经（config_db 机制）
+- [某TPU公司-AI训练芯片验证-校招-一至二面](<../面经/验证/某TPU公司-AI训练芯片验证-校招-一至二面.md>)（config_db 核心作用与各参数含义）
+- [泰凌微-数字IC验证-实习-面试记录](<../面经/验证/泰凌微-数字IC验证-实习-面试记录.md>)（config_db 的参数数量与含义）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q59（对应题目：uvm_config_db 的 get 和 set 方法怎么用——四参数含义）
 
 **考点**
@@ -327,8 +327,8 @@ get 时也是四个参数：当前组件、空串（表示自己）、字段名�
 
 **题目来源**
 
-- 燧原科技 · 数字IC验证 · 校招 · AI方向（描述 UVM 的树形结构）
-- 小鹏汽车 · IP验证 · 校招 · 一面（UVM 的层次结构介绍）
+- [燧原科技-AI芯片验证-校招-一面](<../面经/验证/燧原科技-AI芯片验证-校招-一面.md>)（描述 UVM 的树形结构）
+- [小鹏汽车-NoC IP验证-校招-一至二面](<../面经/验证/小鹏汽车-NoC IP验证-校招-一至二面.md>) · 一面（UVM 的层次结构介绍）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q65-Q66（对应题目：uvm_root 是什么；uvm_test 的父类是谁）
 
 **考点**
@@ -353,8 +353,8 @@ UVM 用一棵**组件树**管理整个验证平台，**真正的根是 uvm_top�
 
 **题目来源**
 
-- 某TPU公司 · 数字IC验证 · 校招 · 面经（多层级组件对同一变量执行 set 操作时的生效规则）
-- 汇顶科技 · 数字IC验证 · 校招 · 一面（set 操作的前后顺序）
+- [某TPU公司-AI训练芯片验证-校招-一至二面](<../面经/验证/某TPU公司-AI训练芯片验证-校招-一至二面.md>)（多层级组件对同一变量执行 set 操作时的生效规则）
+- [汇顶科技-数字IC验证-校招-一面-01](<../面经/验证/汇顶科技-数字IC验证-校招-一面-01.md>)（set 操作的前后顺序）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q60（对应题目：低层组件能把句柄传给高层组件吗——配置流向）
 
 **考点**
@@ -381,7 +381,7 @@ UVM 用一棵**组件树**管理整个验证平台，**真正的根是 uvm_top�
 
 **题目来源**
 
-- 汇顶科技 · 数字IC验证 · 校招 · 一面（config_db 字段名的前缀匹配规则）
+- [汇顶科技-数字IC验证-校招-一面-01](<../面经/验证/汇顶科技-数字IC验证-校招-一面-01.md>)（config_db 字段名的前缀匹配规则）
 
 **考点**
 
@@ -405,7 +405,7 @@ config_db 的字段名支持**通配符前缀匹配**。如果 set 时字段名�
 
 **题目来源**
 
-- 合见工软 · 数字IC验证 · 校招 · 一面（config_db 中 set/get 操作的层级匹配规则）
+- [合见工软-数字IC验证-校招-一面](<../面经/验证/合见工软-数字IC验证-校招-一面.md>)（config_db 中 set/get 操作的层级匹配规则）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q59（对应题目：uvm_config_db 的 get 和 set 方法怎么用——参数匹配）
 
 **考点**
@@ -462,8 +462,8 @@ component 的生命周期由 **UVM 的 phase 机制**管理，分**构建、运�
 
 **题目来源**
 
-- 某TPU公司 · 数字IC验证 · 校招 · 面经（对 TLM 端口 port、export、import 的理解）
-- 通用 · 数字IC验证 · 实习 · 基础面经（TLM 通信：port / export / imp / analysis_port）
+- [某TPU公司-AI训练芯片验证-校招-一至二面](<../面经/验证/某TPU公司-AI训练芯片验证-校招-一至二面.md>)（对 TLM 端口 port、export、import 的理解）
+- [通用-数字IC验证-实习-题目汇总](<../面经/验证/通用-数字IC验证-实习-题目汇总.md>) · 基础面经（TLM 通信：port / export / imp / analysis_port）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q4（对应题目：什么是 TLM port 和 export）
 
 **考点**
@@ -494,8 +494,8 @@ TLM 是事务级建模，让组件之间通过标准端口交换 transaction，�
 
 **题目来源**
 
-- 平头哥 · 数字IC验证 · 校招 · 一面（验证环境中使用 tlm_fifo 的必要性）
-- 小米 · 处理器验证 · 校招（是否接触过 TLM 通信——开放题，可借此展开）
+- [平头哥-数字IC验证-秋招-一面-01](<../面经/验证/平头哥-数字IC验证-秋招-一面-01.md>)（验证环境中使用 tlm_fifo 的必要性）
+- [小米-处理器验证-校招-一至二面](<../面经/验证/小米-处理器验证-校招-一至二面.md>)（是否接触过 TLM 通信——开放题，可借此展开）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q5、Q8（对应题目：什么是 TLM FIFO；Analysis port/FIFO 与 TLM port/FIFO 的区别）
 
 **考点**
@@ -528,18 +528,18 @@ tlm_fifo 本质是组件之间的"中间仓库"：发送方把 transaction 存�
 
 **题目来源**
 
-- 中兴通讯 · 数字IC验证 · 校招 · 领军计划（耗时与不耗时 phase 的区分）
-- 蔚来 · AI计算芯片验证 · 校招 · 一面（uvm phase 机制完整分类以及可放置延时的 phase）
-- 泰凌微 · 数字IC验证 · 校招 · 一面二面（uvm phase 机制）
-- 行云集成电路 · 数字IC验证 · 实习（task phase 和 function phase 的理解、属于 task phase 的类型）
-- 国科微 · 数字IC验证 · 实习（静态 phase 和动态 phase 区别）
-- 韬润 · 数字IC验证 · 实习（uvm 包含哪些 phase）
-- 昆仑芯 · 数字IC验证 · 秋招 · 二面（phase 机制；各 phase 工作内容）
-- 思朗 · 数字IC验证 · 校招（UVM：phase 机制）
-- 芯动科技 · 数字IC验证 · 校招 · 一面（phase 机制）
-- 小米 · 数字IC验证 · 秋招 · 一面（phase 机制，举例 factory 特性）
-- 小米 · ASIC验证 · 实习（UVM phase 机制的详细讲解）
-- ArmChina · 数字IC设计验证 · 校招 · 一面（UVM 各类机制：factory、config、phase）
+- [中兴通讯-数字IC验证-校招-一至二面](<../面经/验证/中兴通讯-数字IC验证-校招-一至二面.md>) · 领军计划（耗时与不耗时 phase 的区分）
+- [蔚来-AI计算芯片验证-校招-一面](<../面经/验证/蔚来-AI计算芯片验证-校招-一面.md>)（uvm phase 机制完整分类以及可放置延时的 phase）
+- [泰凌微-数字IC验证-校招-一至二面](<../面经/验证/泰凌微-数字IC验证-校招-一至二面.md>)（uvm phase 机制）
+- [行云集成电路-数字IC验证-实习-面试记录](<../面经/验证/行云集成电路-数字IC验证-实习-面试记录.md>)（task phase 和 function phase 的理解、属于 task phase 的类型）
+- [国科微-数字IC验证-实习-一至二面](<../面经/验证/国科微-数字IC验证-实习-一至二面.md>)（静态 phase 和动态 phase 区别）
+- [韬润-数字IC验证-实习-一面](<../面经/验证/韬润-数字IC验证-实习-一面.md>)（uvm 包含哪些 phase）
+- [昆仑芯-数字IC验证-秋招-二面](<../面经/验证/昆仑芯-数字IC验证-秋招-二面.md>)（phase 机制；各 phase 工作内容）
+- [思朗-数字IC验证-校招-一至二面](<../面经/验证/思朗-数字IC验证-校招-一至二面.md>)（UVM：phase 机制）
+- [芯动科技-PCIe验证-校招-一面-01](<../面经/验证/芯动科技-PCIe验证-校招-一面-01.md>)（phase 机制）
+- [小米-数字IC验证-秋招-一面](<../面经/验证/小米-数字IC验证-秋招-一面.md>)（phase 机制，举例 factory 特性）
+- [小米-ASIC验证-实习-一至二面](<../面经/验证/小米-ASIC验证-实习-一至二面.md>)（UVM phase 机制的详细讲解）
+- [ArmChina-数字IC设计验证-校招-一面](<../面经/验证/ArmChina-数字IC设计验证-校招-一面.md>)（UVM 各类机制：factory、config、phase）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q55（对应题目：UVM 组件有哪些 phase；run_phase 有哪些子 phase）
 
 注：其中「phase 机制」条目是面试里笼统提到 phase 的场次，未细分到分类、顺序或 objection，统一归到本题。
@@ -572,13 +572,13 @@ UVM 的 phase 分两大类，分水岭是**能不能耗仿真时间**：
 
 **题目来源**
 
-- 通用 · 数字IC验证 · 实习 · 基础面经（phase 机制：各 phase 执行顺序）
-- 字节跳动 · 数字IC验证 · 实习 · 高频题（run_test 开始执行的是哪个 phase、UVM 中 phase 的完整分类与分组）
-- 中兴通讯 · 数字IC验证 · 校招 · 领军计划（UVM Phase 机制的总体执行顺序）
-- 泰凌微 · 数字IC验证 · 实习（build 与 connect 的先后顺序、执行流程以及顺序原因）
-- 韬润 · 数字IC验证 · 实习（build phase 的执行顺序以及顺序原因）
-- 行云集成电路 · 数字IC验证 · 实习（build 和 connect phase 的顺序）
-- 国科微 · 数字IC验证 · 实习（phase 运行顺序、顺序设计原因）
+- [通用-数字IC验证-实习-题目汇总](<../面经/验证/通用-数字IC验证-实习-题目汇总.md>) · 基础面经（phase 机制：各 phase 执行顺序）
+- [字节跳动-数字IC验证-实习-题目汇总](<../面经/验证/字节跳动-数字IC验证-实习-题目汇总.md>) · 高频题（run_test 开始执行的是哪个 phase、UVM 中 phase 的完整分类与分组）
+- [中兴通讯-数字IC验证-校招-一至二面](<../面经/验证/中兴通讯-数字IC验证-校招-一至二面.md>) · 领军计划（UVM Phase 机制的总体执行顺序）
+- [泰凌微-数字IC验证-实习-面试记录](<../面经/验证/泰凌微-数字IC验证-实习-面试记录.md>)（build 与 connect 的先后顺序、执行流程以及顺序原因）
+- [韬润-数字IC验证-实习-一面](<../面经/验证/韬润-数字IC验证-实习-一面.md>)（build phase 的执行顺序以及顺序原因）
+- [行云集成电路-数字IC验证-实习-面试记录](<../面经/验证/行云集成电路-数字IC验证-实习-面试记录.md>)（build 和 connect phase 的顺序）
+- [国科微-数字IC验证-实习-一至二面](<../面经/验证/国科微-数字IC验证-实习-一至二面.md>)（phase 运行顺序、顺序设计原因）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q55（对应题目：UVM 组件有哪些 phase——三组执行顺序）
 
 **考点**
@@ -603,15 +603,15 @@ UVM 的 phase 分两大类，分水岭是**能不能耗仿真时间**：
 
 **题目来源**
 
-- 小米 · 处理器验证 · 校招（run_phase 与 main_phase 的区别）
-- 芯动科技 · 数字IC验证 · 校招（run_phase 与 main_phase 的区别）
-- 小鹏汽车 · SOC验证 · 校招（区别；main_phase 写了 raise_objection 而 run_phase 没写，run_phase 能否正常运行）
-- 某TPU公司 · 数字IC验证 · 校招（两者关系；main_phase 里 raise/drop objection 时 run_phase 是否继续执行）
-- 蔚来 · AI计算芯片验证 · 校招 · 一面（run phase 和 main phase 能否同时使用）
-- 行云集成电路 · 数字IC验证 · 实习（run phase 和 12 个子 phase 的关系，能否同时使用）
-- 飞腾 · 数字IC验证 · 校招 · 一面（main_phase 执行 drop 后是否影响 run_phase）
-- 大疆 · 数字IC验证 · 校招（main 与 run 的区别，二者同时存在的风险）
-- 中兴通讯 · 数字IC验证 · 校招 · 领军计划（run_phase 与 main_phase 的关联）
+- [小米-处理器验证-校招-一至二面](<../面经/验证/小米-处理器验证-校招-一至二面.md>)（run_phase 与 main_phase 的区别）
+- [芯动科技-PCIe验证-校招-一至二面](<../面经/验证/芯动科技-PCIe验证-校招-一至二面.md>)（run_phase 与 main_phase 的区别）
+- [小鹏汽车-SoC验证-秋招-一面](<../面经/验证/小鹏汽车-SoC验证-秋招-一面.md>)（区别；main_phase 写了 raise_objection 而 run_phase 没写，run_phase 能否正常运行）
+- [某TPU公司-AI训练芯片验证-校招-一至二面](<../面经/验证/某TPU公司-AI训练芯片验证-校招-一至二面.md>)（两者关系；main_phase 里 raise/drop objection 时 run_phase 是否继续执行）
+- [蔚来-AI计算芯片验证-校招-一面](<../面经/验证/蔚来-AI计算芯片验证-校招-一面.md>)（run phase 和 main phase 能否同时使用）
+- [行云集成电路-数字IC验证-实习-面试记录](<../面经/验证/行云集成电路-数字IC验证-实习-面试记录.md>)（run phase 和 12 个子 phase 的关系，能否同时使用）
+- [飞腾-数字IC验证-校招-一面](<../面经/验证/飞腾-数字IC验证-校招-一面.md>)（main_phase 执行 drop 后是否影响 run_phase）
+- [大疆-数字IC验证-校招及初级社招-一至二面](<../面经/验证/大疆-数字IC验证-校招及初级社招-一至二面.md>)（main 与 run 的区别，二者同时存在的风险）
+- [中兴通讯-数字IC验证-校招-一至二面](<../面经/验证/中兴通讯-数字IC验证-校招-一至二面.md>) · 领军计划（run_phase 与 main_phase 的关联）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q55（对应题目：run_phase 的 12 个子 phase，含 main）
 
 **考点**
@@ -640,7 +640,7 @@ UVM 的 phase 分两大类，分水岭是**能不能耗仿真时间**：
 
 **题目来源**
 
-- 豪威科技 · 数字IC验证 · 校招 · 一面（build_phase / main_phase / configure_phase 中 AXI VIP 和 APB VIP 的配置——应用型）
+- [豪威科技-数字IC验证-校招-一面](<../面经/验证/豪威科技-数字IC验证-校招-一面.md>)（build_phase / main_phase / configure_phase 中 AXI VIP 和 APB VIP 的配置——应用型）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q56（对应题目：为什么 build_phase 在组件层次中自顶向下执行）
 
 **考点**
@@ -671,8 +671,8 @@ build_phase 自顶向下是**因果必然**，不是约定：phase 调度器调�
 
 **题目来源**
 
-- 思朗 · 数字IC验证 · 校招 · 面经（main_phase 运行中途需要触发复位时的跳转方式）
-- 飞腾 · 数字IC验证 · 校招 · 一面（phase.jump 相关问题）
+- [思朗-数字IC验证-校招-一至二面](<../面经/验证/思朗-数字IC验证-校招-一至二面.md>)（main_phase 运行中途需要触发复位时的跳转方式）
+- [飞腾-数字IC验证-校招-一面](<../面经/验证/飞腾-数字IC验证-校招-一面.md>)（phase.jump 相关问题）
 
 **考点**
 
@@ -701,10 +701,10 @@ build_phase 自顶向下是**因果必然**，不是约定：phase 调度器调�
 
 **题目来源**
 
-- 蔚来 · AI计算芯片验证 · 校招 · 一面（objection 机制）
-- 昆仑芯 · 数字IC验证 · 秋招 · 二面（raise_objection 与 drop_objection 用法）
-- 小鹏汽车 · SOC验证 · 校招（main_phase 写了 raise_objection 而 run_phase 没写，run_phase 能否正常运行）
-- 某TPU公司 · 数字IC验证 · 校招（main_phase 里 raise/drop objection 时 run_phase 是否继续执行）
+- [蔚来-AI计算芯片验证-校招-一面](<../面经/验证/蔚来-AI计算芯片验证-校招-一面.md>)（objection 机制）
+- [昆仑芯-数字IC验证-秋招-二面](<../面经/验证/昆仑芯-数字IC验证-秋招-二面.md>)（raise_objection 与 drop_objection 用法）
+- [小鹏汽车-SoC验证-秋招-一面](<../面经/验证/小鹏汽车-SoC验证-秋招-一面.md>)（main_phase 写了 raise_objection 而 run_phase 没写，run_phase 能否正常运行）
+- [某TPU公司-AI训练芯片验证-校招-一至二面](<../面经/验证/某TPU公司-AI训练芯片验证-校招-一至二面.md>)（main_phase 里 raise/drop objection 时 run_phase 是否继续执行）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q52（对应题目：什么是 objection？有什么用？）
 
 **考点**
@@ -738,12 +738,12 @@ objection 是 UVM 用来**控制 task phase 何时结束**的机制，本质是�
 
 **题目来源**
 
-- 平头哥 · 数字IC验证 · 校招 · 一面（凉经）（seq.start() 与 start_item...end_item 的差异）
-- 通用 · 数字IC验证 · 实习 · 面试题汇总（UVM 中 sequence 的启动机制）
-- 昆仑芯 · 数字IC验证 · 秋招 · 二面（sequence 启动方法）
-- 昆仑芯 · 数字IC验证 · 校招 · 二面（sequence 启动方式，项目中的实际使用案例）
-- 小米 · 数字IC验证 · 秋招 · 一面（sequence 启动方式、优缺点）
-- 中兴通讯 · 数字IC验证 · 校招 · 领军计划（Sequence 启动方式）
+- [平头哥-数字IC验证-秋招-一面-01](<../面经/验证/平头哥-数字IC验证-秋招-一面-01.md>)（凉经）（seq.start() 与 start_item...end_item 的差异）
+- [某公司-数字IC验证-实习-面试记录](<../面经/验证/某公司-数字IC验证-实习-面试记录.md>)（UVM 中 sequence 的启动机制）
+- [昆仑芯-数字IC验证-秋招-二面](<../面经/验证/昆仑芯-数字IC验证-秋招-二面.md>)（sequence 启动方法）
+- [昆仑芯-数字IC验证-校招-二面](<../面经/验证/昆仑芯-数字IC验证-校招-二面.md>)（sequence 启动方式，项目中的实际使用案例）
+- [小米-数字IC验证-秋招-一面](<../面经/验证/小米-数字IC验证-秋招-一面.md>)（sequence 启动方式、优缺点）
+- [中兴通讯-数字IC验证-校招-一至二面](<../面经/验证/中兴通讯-数字IC验证-校招-一至二面.md>) · 领军计划（Sequence 启动方式）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q20、Q23（对应题目：运行一个 sequence 需要哪些步骤；start 是阻塞还是非阻塞）
 
 **考点**
@@ -769,14 +769,14 @@ objection 是 UVM 用来**控制 task phase 何时结束**的机制，本质是�
 
 **题目来源**
 
-- 小米 · ASIC验证 · 实习（UVM 中 sequencer 与 driver 的握手机制）
-- 某TPU公司 · 数字IC验证 · 校招（driver 与 sequence 的握手机制）
-- 字节跳动 · 数字IC验证 · 校招 · SOC方向（driver 驱动 sequence 的方式）
-- 泰凌微 · 数字IC验证 · 校招 · 一面（driver 向 sequence 传递 item 的方式）
-- 燧原科技 · 数字IC验证 · 校招 · AI方向（sequence、driver、sequencer 三者工作交互逻辑）
-- 某公司 · 数字IC验证 · 校招 · 一面（sequencer 与 driver 交互逻辑）
-- 泰凌微 · 数字IC验证 · 校招 · 一面二面（seq 和 drv 握手）
-- 泰凌微 · 数字IC验证 · 实习（sequence、sequencer、driver 的功能与互相通信机制）
+- [小米-ASIC验证-实习-一至二面](<../面经/验证/小米-ASIC验证-实习-一至二面.md>)（UVM 中 sequencer 与 driver 的握手机制）
+- [某TPU公司-AI训练芯片验证-校招-一至二面](<../面经/验证/某TPU公司-AI训练芯片验证-校招-一至二面.md>)（driver 与 sequence 的握手机制）
+- [字节跳动-SoC验证-校招-面试记录](<../面经/验证/字节跳动-SoC验证-校招-面试记录.md>)（driver 驱动 sequence 的方式）
+- [泰凌微-数字IC验证-校招-一面](<../面经/验证/泰凌微-数字IC验证-校招-一面.md>)（driver 向 sequence 传递 item 的方式）
+- [燧原科技-AI芯片验证-校招-一面](<../面经/验证/燧原科技-AI芯片验证-校招-一面.md>)（sequence、driver、sequencer 三者工作交互逻辑）
+- [某公司-数字IC验证-校招-一面](<../面经/验证/某公司-数字IC验证-校招-一面.md>)（sequencer 与 driver 交互逻辑）
+- [泰凌微-数字IC验证-校招-一至二面](<../面经/验证/泰凌微-数字IC验证-校招-一至二面.md>)（seq 和 drv 握手）
+- [泰凌微-数字IC验证-实习-面试记录](<../面经/验证/泰凌微-数字IC验证-实习-面试记录.md>)（sequence、sequencer、driver 的功能与互相通信机制）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q21（对应题目：sequencer 与 driver 之间的协议握手是怎样的）
 
 **考点**
@@ -805,7 +805,7 @@ objection 是 UVM 用来**控制 task phase 何时结束**的机制，本质是�
 
 **题目来源**
 
-- 泰凌微 · 数字IC验证 · 校招 · 一面（pre_body/body/post_body 执行顺序是 sequence 生命周期考点）
+- [泰凌微-数字IC验证-校招-一面](<../面经/验证/泰凌微-数字IC验证-校招-一面.md>)（pre_body/body/post_body 执行顺序是 sequence 生命周期考点）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q22（对应题目：pre_body 和 post_body 是什么？它们总会被调用吗）
 
 **考点**
@@ -834,11 +834,11 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 
 **题目来源**
 
-- 平头哥 · 数字IC验证 · 校招 · 一面（凉经）（p_sqr 与 m_sqr 的区别）
-- 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（m sequencer 与 p sequencer 的区别；p sequencer 的定义与用途）
-- 某TPU公司 · 数字IC验证 · 校招（m_sequencer 与 p_sequencer 的关系）
-- 海光 · 数字IC验证 · 校招（m_sequencer 和 p_sequencer 的区别及转化方式）
-- 乐鑫科技 · 数字IC验证 · 校招 · 一面（m_sequencer 与 p_sequencer）
+- [平头哥-数字IC验证-秋招-一面-01](<../面经/验证/平头哥-数字IC验证-秋招-一面-01.md>)（凉经）（p_sqr 与 m_sqr 的区别）
+- [达摩院-数字IC验证-校招-一面](<../面经/验证/达摩院-数字IC验证-校招-一面.md>)（凉经）（m sequencer 与 p sequencer 的区别；p sequencer 的定义与用途）
+- [某TPU公司-AI训练芯片验证-校招-一至二面](<../面经/验证/某TPU公司-AI训练芯片验证-校招-一至二面.md>)（m_sequencer 与 p_sequencer 的关系）
+- [海光-数字IC验证-校招-多轮面试](<../面经/验证/海光-数字IC验证-校招-多轮面试.md>)（m_sequencer 和 p_sequencer 的区别及转化方式）
+- [乐鑫科技-数字IC验证-秋招-一面-02](<../面经/验证/乐鑫科技-数字IC验证-秋招-一面-02.md>)（m_sequencer 与 p_sequencer）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q30-Q31（对应题目：m_sequencer 与 p_sequencer 是什么？有何区别）
 
 **考点**
@@ -863,7 +863,7 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 
 **题目来源**
 
-- 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（使用 uvm_do 宏时 sequence 是否会出现阻塞）
+- [达摩院-数字IC验证-校招-一面](<../面经/验证/达摩院-数字IC验证-校招-一面.md>)（凉经）（使用 uvm_do 宏时 sequence 是否会出现阻塞）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q23（对应题目：start 是阻塞还是非阻塞）
 
 **考点**
@@ -890,7 +890,7 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 
 **题目来源**
 
-- 字节跳动 · AI芯片验证 · 一面（sequence 脱离 sequencer 时，如何直接向 driver 发送激励）
+- [字节跳动-AI芯片验证-批次未注明-一面](<../面经/验证/字节跳动-AI芯片验证-批次未注明-一面.md>)（sequence 脱离 sequencer 时，如何直接向 driver 发送激励）
 
 **考点**
 
@@ -916,17 +916,17 @@ sequence 启动后有五个回调按固定顺序执行：pre_start、pre_body、
 
 **题目来源**
 
-- 字节跳动 · 数字IC验证 · 实习 · 高频题（virtual sequence vs 普通 sequence 的差异 + 为什么命名为 virtual）
-- 豪威科技 · 数字IC验证 · 校招 · 一面（virtual sequencer 怎么调度多个 AXI sequence）
-- 合见工软 · 数字IC验证 · 校招 · 一面（virtual sequence 与物理接口的连接方法）
-- 达摩院 · 数字IC验证 · 校招 · 一面（凉经）（virtual sequencer 与 virtual sequence 的用法）
-- 兆易创新 · 数字IC验证 · 校招（virtual sequence 内激励在随机化时如何同步）
-- 达摩院 · 数字IC验证 · 校招 · 二面（virtual sequencer 和 virtual sequence 的作用）
-- 蔚来 · AI计算芯片验证 · 校招 · 一面（virtual sequence/sequencer 原理与使用意义）
-- ArmChina · 数字IC设计验证 · 校招 · 三面（virtual sequence 和 sequence 区别）
-- 泰凌微 · 数字IC验证 · 校招 · 一面二面（virtual sequence）
-- 昕原 · 数字IC验证 · 实习（virtual sequence 的意义）
-- 韬润 · 数字IC验证 · 实习（是否使用 virtual sequence 及其作用）
+- [字节跳动-数字IC验证-实习-题目汇总](<../面经/验证/字节跳动-数字IC验证-实习-题目汇总.md>) · 高频题（virtual sequence vs 普通 sequence 的差异 + 为什么命名为 virtual）
+- [豪威科技-数字IC验证-校招-一面](<../面经/验证/豪威科技-数字IC验证-校招-一面.md>)（virtual sequencer 怎么调度多个 AXI sequence）
+- [合见工软-数字IC验证-校招-一面](<../面经/验证/合见工软-数字IC验证-校招-一面.md>)（virtual sequence 与物理接口的连接方法）
+- [达摩院-数字IC验证-校招-一面](<../面经/验证/达摩院-数字IC验证-校招-一面.md>)（凉经）（virtual sequencer 与 virtual sequence 的用法）
+- [兆易创新-传感器芯片验证-校招-一至四面](<../面经/验证/兆易创新-传感器芯片验证-校招-一至四面.md>)（virtual sequence 内激励在随机化时如何同步）
+- [达摩院-数字IC验证-校招-二面](<../面经/验证/达摩院-数字IC验证-校招-二面.md>)（virtual sequencer 和 virtual sequence 的作用）
+- [蔚来-AI计算芯片验证-校招-一面](<../面经/验证/蔚来-AI计算芯片验证-校招-一面.md>)（virtual sequence/sequencer 原理与使用意义）
+- [ArmChina-数字IC设计验证-校招-三面](<../面经/验证/ArmChina-数字IC设计验证-校招-三面.md>)（virtual sequence 和 sequence 区别）
+- [泰凌微-数字IC验证-校招-一至二面](<../面经/验证/泰凌微-数字IC验证-校招-一至二面.md>)（virtual sequence）
+- [昕原-数字IC验证-实习-多轮面试](<../面经/验证/昕原-数字IC验证-实习-多轮面试.md>)（virtual sequence 的意义）
+- [韬润-数字IC验证-实习-一面](<../面经/验证/韬润-数字IC验证-实习-一面.md>)（是否使用 virtual sequence 及其作用）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q43（对应题目：什么是 virtual sequence？有什么好处）
 
 **考点**
@@ -953,7 +953,7 @@ virtual sequence 是**通常自己不产生激励的 sequence**——body 里启
 
 **题目来源**
 
-- 汇顶科技 · 数字IC验证 · 校招 · 一面（sequence 获取组件 config 的方式）
+- [汇顶科技-数字IC验证-校招-一面-01](<../面经/验证/汇顶科技-数字IC验证-校招-一面-01.md>)（sequence 获取组件 config 的方式）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q58、Q59（对应题目：uvm_config_db 是什么；get 和 set 方法怎么用）
 
 **考点**
@@ -980,7 +980,7 @@ sequence 是 uvm_object，不在组件树上、没有自己的路径，而 confi
 
 **题目来源**
 
-- 字节跳动 · 数字IC验证 · 校招 · 一面（driver 向 sequence 返回 rsp 的方式，`get_rsp` 相关机制）
+- [字节跳动-数字IC验证-秋招-一面](<../面经/验证/字节跳动-数字IC验证-秋招-一面.md>)（driver 向 sequence 返回 rsp 的方式，`get_rsp` 相关机制）
 - 面试书《Cracking Digital VLSI Verification Interview》· 第6章 Q29、Q37（对应题目：多个 sequence 时如何保证响应送回正确的 sequence；item_done 带参数与不带参数的区别）
 
 **考点**

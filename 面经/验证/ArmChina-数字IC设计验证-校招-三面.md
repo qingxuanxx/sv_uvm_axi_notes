@@ -1,4 +1,4 @@
-# ArmChina · 数字IC设计验证 · 校招三面
+# ArmChina-数字IC设计验证-校招-三面
 
 > 来源：小红书 ｜ base 上海 ｜ 时长：50 分钟 ｜ 岗位：design verification，线上面试，面试官深耕 CPU 领域、提问细致。
 

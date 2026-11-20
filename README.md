@@ -1,6 +1,6 @@
 # SV、UVM、AMBA 总线学习笔记
 
-![最后更新](https://img.shields.io/badge/%E6%9C%80%E5%90%8E%E6%9B%B4%E6%96%B0-2026--10--17-blue)
+![最后更新](https://img.shields.io/badge/%E6%9C%80%E5%90%8E%E6%9B%B4%E6%96%B0-2026--11--20-blue)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 ![GitHub Stars](https://img.shields.io/github/stars/qingxuanxx/sv_uvm_axi_notes?style=flat&color=yellow)
 ![面经](https://img.shields.io/badge/%E9%9D%A2%E7%BB%8F-100%E7%AF%87-orange)
@@ -12,12 +12,14 @@
 - 📘 **SystemVerilog 学习笔记**：数据类型、随机化、线程通信、面向对象、功能覆盖率（第 2~9 章）
 - 🚀 **UVM 实战学习笔记**：平台搭建、UVM 基础、TLM、phase、sequence、寄存器模型、factory、可重用性（第 1~9 章）
 - 🔌 **AMBA 总线协议**：AXI、AXI-Lite、AXI-Stream、AHB、APB
-- 🎯 **面试八股**：SV / UVM / AXI 高频考点（SV 27 题 · UVM 30 题 · AXI 40 题，持续积累）
+- 🎯 **面试八股**收录 [SV 27 题](./sv学习笔记/sv_八股.md)、[UVM 30 题](./uvm学习笔记/uvm_八股.md)和 [AXI 40 题](./axi学习笔记/axi_八股.md)。点击“题目来源”里的面经名称，可查看原始提问和面试上下文。
 - 📄 **面试书笔记**：《Cracking Digital VLSI Verification Interview》整理
-- 📝 **校招面经**：100 篇数字IC设计/验证面试经验（设计 10 篇 · 验证 90 篇，持续更新）
+- 📝 **面经**收录 100 篇面试记录，涵盖校招和实习，按[设计（10 篇）](./面经/设计/)和[验证（90 篇）](./面经/验证/)浏览。
 - 🧩 **场景设计**：模块验证方案、feature 拆分、测试点分解、故障排查（待完成）
 - ✍️ **笔试真题**：各公司笔试记录与高频考点归纳（待完成）
 - 🖥️ **手撕代码**：面经手撕题目整理（待完成）
+
+面经按 `公司-岗位或技术方向-招聘批次-轮次或文档类型` 命名。同组有多篇时，在末尾加两位序号，例如 [芯动科技-PCIe验证-校招-一面-01](./面经/验证/芯动科技-PCIe验证-校招-一面-01.md)。
 
 ## 目录
 
@@ -88,4 +90,4 @@ sv_uvm_axi_notes/
 - ARM AMBA 3 APB Protocol（IHI 0024）：https://developer.arm.com/documentation/ihi0024
 - ARM AMBA AHB Protocol Specification（IHI 0033）：https://developer.arm.com/documentation/ihi0033
 
-> 最后更新：2026-10-17
+> 最后更新：2026-11-20
