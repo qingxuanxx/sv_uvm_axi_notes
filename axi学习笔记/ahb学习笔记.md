@@ -1,8 +1,6 @@
-# AMBA AHB 学习笔记：单总线流水线，高性能主干
+# AMBA AHB 学习笔记：地址阶段、数据阶段与流水线
 
-> 适合读者：已经学过 APB（两阶段）和 AXI（五通道），准备补全 AMBA 家族中间一环的验证工程师。
->
-> 学习目标：看懂 AHB 时序；理解流水线、HREADY 全局流控、HTRANS 四状态、burst 与 ERROR 两拍响应。
+读 AHB 波形时，先分别标出每笔传输的地址阶段和数据阶段。若 `HREADY` 为低，当前数据阶段和下一笔地址阶段会一起延长。
 
 ---
 
@@ -18,23 +16,21 @@
 | Issue B | 引入 AHB5（在 AHB-Lite 基础上增加能力） |
 | Issue C | 增加信号宽度属性、写 strobe、用户信号、奇偶校验接口保护 |
 
-> **术语说明：本文统一使用传统命名 Master / Slave**（新版规范称 Master / Slave，含义相同：Master 是发起传输的一方如 CPU、DMA，Slave 是响应传输的一方如内存控制器、外设；本文统一用 Master/Slave）。
-
-> **阅读主线：** 先把同一周期中的"上一笔数据"和"下一笔地址"分开（流水线），再学习等待、burst、响应和互联。
+Master 发起传输，例如 CPU 或 DMA。Slave 响应传输，例如内存控制器或外设。
 
 ---
 
 ## 1. AHB 是什么
 
-**一句话定位**：AHB 是 AXI 的"前辈"——高性能系统总线，**一条总线（地址数据共用）+ 流水线 + 全局流控**，介于 APB（最简单）和 AXI（最强）之间。
+AHB 把一次传输分成地址阶段和数据阶段。连续传输时，同一拍可以同时出现上一笔的数据和下一笔的地址。
 
 AMBA 家族定位：
 
-| 协议 | 定位 | 一句话 |
+| 协议 | 常见用途 | 传输特点 |
 |---|---|---|
-| APB | 低速外设 | 单车道小马路，最便宜 |
-| **AHB** | 高性能系统 | **单车道但会流水**（地址/数据重叠） |
-| AXI | 超高性能 | 五车道高速路 |
+| APB | 外设寄存器访问 | 每笔访问依次经过 SETUP 和 ACCESS |
+| AHB | 处理器、DMA 与存储器之间的传输 | 相邻传输的地址阶段与数据阶段可以重叠 |
+| AXI | 存储器和片上互连 | 五个通道独立握手，读写可以并行 |
 
 常见系统结构：
 
@@ -60,8 +56,6 @@ AHB 的核心特点：
 - **分离读写数据总线**：`HWDATA` 和 `HRDATA` 独立。
 - 所有信号以 `H` 开头（HCLK、HADDR...）。
 
-> 记忆：**AHB 是"主干道"追求吞吐，APB 是"小区路"追求简单低功耗。**
-
 ### 1.1 AHB 与 APB 的区别
 
 | 对比项 | AHB | APB |
@@ -73,8 +67,6 @@ AHB 的核心特点：
 | 等待状态 | ✅ HREADY | ✅ PREADY |
 | 错误响应 | ✅ HRESP（ERROR 两拍） | ✅ PSLVERR（单拍） |
 | 读写数据总线 | 分离（HWDATA/HRDATA） | 分离（PWDATA/PRDATA） |
-
-> 记忆：**APB 是"点单→等上菜→再点下一单"（串行）；AHB 是"前一个菜还在做，后一个已经下单"（流水线）。**
 
 ---
 
@@ -145,9 +137,7 @@ AHB 的核心特点：
                             |--B 地址--|--B 数据--|
 ```
 
-**关键：地址阶段和数据阶段重叠**——传输 A 的数据阶段同时也是传输 B 的地址阶段。这是 AHB 流水线的本质，也是高性能的来源。
-
-**类比**：餐厅点餐流水线——前一个客人的菜还在做（数据阶段 A），后一个客人已经在下单了（地址阶段 B）。
+波形中，A 处于数据阶段时，B 就可以给出地址。这两个阶段对应不同的传输。
 
 ### 3.2 等待状态（wait states）
 
@@ -171,15 +161,11 @@ Slave 用 `HREADYOUT` 拉低来延长数据阶段：
 | 不定长 `INCR` 的 `BUSY` | `IDLE`/`NONSEQ` | 终止原 burst |
 | 已经有效的 `NONSEQ/SEQ` | 通常不能改变 | 保持到 `HREADY=1` |
 
-**理解**：`IDLE/BUSY` 是"还没有真正提交访问"，`NONSEQ/SEQ` 是"访问已经摆到总线上"——后者一旦出现，就不能在完成前随意撤换。
-
 **注意**：`BUSY` 只表示 Master 暂时不能给出 burst 的下一拍，**不表示 Slave 正忙**。Slave 必须忽略 `BUSY`，并返回零等待 OKAY。
-
-> 记忆：**HREADY=0 插等待、HREADY=1 完成；Slave 有最大等待数限制，否则会拖垮整个总线性能。**
 
 ### 3.3 传输类型（HTRANS）
 
-**为什么 AHB 需要 HTRANS？** 因为它是单总线流水线，主设备必须告诉总线"我这拍发的是新传输还是续传"——AXI 不需要这个（分通道天然区分）。
+`HTRANS` 表明当前地址阶段是空闲、暂停、一次传输的开始，还是 burst 的后续传输。
 
 | HTRANS[1:0] | 类型 | 含义 | 类比 |
 |---|---|---|---|
@@ -193,8 +179,6 @@ Slave 用 `HREADYOUT` 拉低来延长数据阶段：
 - burst 的**第一拍必须是 NONSEQ**；
 - 后续拍是 **SEQ**（连续地址）或 BUSY（主设备暂时没数据）；
 - **固定长度 burst 最后一拍不能是 BUSY**（必须以 SEQ 结束）。
-
-> 记忆：**NONSEQ 开头、SEQ 续拍、BUSY 中间歇、IDLE 没活干。单个传输 = NONSEQ（长度 1 的 burst）。**
 
 ### 3.4 传输大小（HSIZE）
 
@@ -310,13 +294,11 @@ address(n) = boundary_base + ((start - boundary_base + n × bytes_per_beat) mod 
 
 **典型 error 场景**：地址译码无目标、访问保护区域、写只读寄存器、从机内部错误、不支持的传输类型。
 
-> 记忆：**OKAY 一拍、ERROR 两拍**。ERROR 后 Master 可以取消 burst 剩余拍（也可以继续）；读 ERROR 时建议 HRDATA 驱 0。
+ERROR 响应分两个周期。Master 可以取消 burst 的剩余传输，也可以继续。
 
-### 5.3 HREADYOUT 与 HREADY 的分工（核心理解）
+### 5.3 HREADYOUT 与 HREADY 的分工
 
-**每个从机有自己的 HREADYOUT（自己能不能完成）；interconnect 按"当前数据阶段的目标从机"选一个，合成全局 HREADY 广播回去。**
-
-为什么需要两个信号？因为流水线错位——拍 N 的**数据阶段**对应拍 N-1 的**地址阶段**，同一拍可能有"从机 A 的数据"和"从机 B 的地址"同时在总线上。总线该听谁的 HREADY？**听数据阶段目标（A）的**。
+每个 Slave 用 `HREADYOUT` 表示自己的数据阶段能否结束。互连选择当前数据阶段所属 Slave 的 `HREADYOUT` 作为总线的 `HREADY`。下例中地址已经指向 B，返回就绪状态的仍是 A。
 
 ```text
 拍1: 地址阶段 → 目标 A（慢）
@@ -325,9 +307,7 @@ address(n) = boundary_base + ((start - boundary_base + n × bytes_per_beat) mod 
      → interconnect 选 HREADYOUT_A → A 没准备好 → 全局 HREADY=0 → 所有人都等
 ```
 
-**从机完成判断**：用 `HSEL && HREADY`（被选中 && 全局就绪），**不能只看自己的 HREADYOUT**——全局可能被别的从机拉低，从机必须服从全局。
-
-> 一句话：**HREADYOUT 是从机向总线"报状态"的声明口，HREADY 是 interconnect 合成的全局流控；从机完成看 HSEL && HREADY。**
+在 `HCLK` 上升沿，`HREADY=1` 表示当前数据阶段结束。同一上升沿，被 `HSEL` 选中的 Slave 若采到 `HTRANS` 为 `NONSEQ` 或 `SEQ`，就接收下一笔有效传输的地址和控制信息。
 
 ---
 
@@ -441,36 +421,6 @@ Exclusive Transfer 的三个重要限制：**只能是单 beat、地址必须按
 AHB5 允许 `HAUSER/HWUSER/HRUSER/HBUSER` 随请求、写数据、读数据和响应传递项目自定义信息。协议规定相位和有效条件，但不规定业务编码。
 
 Issue C 定义的 check 信号可保护地址、控制、数据和响应接口。它属于接口传输保护，**不等同于存储器 ECC**。
-
----
-
-## 9. 总结
-
-### 9.1 学习重点排序
-
-| 优先级 | 内容 |
-|---|---|
-| 🔴 高 | 两阶段传输与流水线（地址/数据重叠） |
-| 🔴 高 | 传输类型（IDLE/BUSY/NONSEQ/SEQ） |
-| 🔴 高 | burst 类型与 WRAP 边界计算 |
-| 🔴 高 | HREADY 等待状态与 HREADYOUT 综合 |
-| 🟡 中 | ERROR 两拍响应机制 |
-| 🟡 中 | HSIZE/HBURST 编码表 |
-| 🟢 进阶 | 锁定传输、写 strobe、端序、AHB5 独占访问 |
-| 🟢 进阶 | reset、信号有效性、用户信号和奇偶校验 |
-
-### 9.2 易错点
-
-| 易错点 | 正确理解 |
-|---|---|
-| AHB 与 APB 一样两拍完成 | 错，AHB 是流水线，地址/数据重叠 |
-| OKAY 和 ERROR 都是单拍 | 错，ERROR 必须两拍 |
-| BUSY 可以在 burst 末尾 | 固定长度 burst 必须以 SEQ 结束 |
-| WRAP 和 INCR 一样 | 错，WRAP 在边界绕回 |
-| 所有 Slave 都必须 ready 才能推进 | 错，互联选择当前数据阶段目标的 HREADYOUT 形成 HREADY |
-| HSIZE 可以大于总线宽度 | 错，HSIZE ≤ 数据总线宽度 |
-| 从机完成只看自己的 HREADYOUT | 错，完成看 HSEL && HREADY（全局） |
-| 边界是 4KB | AHB 是 1KB（AXI 才是 4KB） |
 
 ---
 

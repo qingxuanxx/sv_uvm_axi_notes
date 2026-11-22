@@ -1,12 +1,10 @@
 # SystemVerilog 第 3 章学习笔记：过程语句和子程序
 
-> **本章核心**：SystemVerilog 在过程语句和子程序上向 C/C++ 看齐 — `for` 内声明变量、`break`/`continue`、`return`、`ref` 引用传递、`automatic` 动态存储、缺省参数值、命名参数传递。这些改进让 testbench 代码更简洁、更安全、更接近软件语言。
+`break` 和 `continue` 控制循环，`return` 结束当前子程序。写 task 或 function 时，还要决定参数怎样传递、局部变量要保存多久。
 
 ---
 
-## 3.1 过程语句（🟡 中）
-
-SystemVerilog 从 C/C++ 引入了很多过程语句改进：
+## 3.1 过程语句
 
 | 特性 | 说明 | 示例 |
 |------|------|------|
@@ -62,7 +60,7 @@ end
 
 ---
 
-## 3.2 任务、函数以及 void 函数（🔴 高）
+## 3.2 任务、函数以及 void 函数
 
 ### 3.2.1 task 和 function 的区别
 
@@ -101,7 +99,7 @@ void'($fscanf(file, "%d", value));  // 显式告诉编译器：我不关心返�
 
 ---
 
-## 3.3 任务和函数概述（🔴 高）
+## 3.3 任务和函数概述
 
 ### 3.3.1 去掉 begin...end
 
@@ -125,7 +123,7 @@ endtask : multiple_lines
 
 ---
 
-## 3.4 子程序参数（🔴 高）
+## 3.4 子程序参数
 
 ### 3.4.1 C 语言风格的参数声明
 
@@ -296,7 +294,7 @@ endtask
 
 ---
 
-## 3.5 子程序的返回（🟡 中）
+## 3.5 子程序的返回
 
 ### 3.5.1 return 语句
 
@@ -372,7 +370,7 @@ end
 
 ---
 
-## 3.6 局部数据存储（🔴 高）
+## 3.6 局部数据存储
 
 ### 3.6.1 静态存储 vs 自动存储
 
@@ -432,7 +430,7 @@ local_addr = addr << 2;    // 每次进入都会重新执行赋值语句
 
 ---
 
-## 3.7 时间值（🟢 低）
+## 3.7 时间值
 
 ### 3.7.1 timeunit 和 timeprecision
 
@@ -506,19 +504,3 @@ endmodule
 | `$realtime` | 实数 | 带小数部分的完整时间值 |
 
 > 📌 测试平台需要精确时间（例如统计延时）时，优先使用 `$realtime`。
-
----
-
-## 3.8 本章总结
-
-### 3.8.1 学习重点排序
-
-| 优先级 | 必须掌握 |
-|:---:|------|
-| 🔴 高 | task / function / `function void` 的区别：能不能消耗时间、能被谁调用 |
-| 🔴 高 | 循环变量在循环头声明：`for (int i = 0; ...)` |
-| 🔴 高 | `ref` / `const ref` / `output` 的区别：零拷贝、实时可见 |
-| 🟡 中 | 缺省参数值与命名参数传递 `.c(5)` |
-| 🟡 中 | `return` 让 task/function 提前退出 |
-| 🟡 中 | `automatic` 动态存储 vs 静态存储；`program automatic` |
-| 🟢 进阶 | `timeunit` / `timeprecision`、`$timeformat`、`$realtime` vs `$time` |

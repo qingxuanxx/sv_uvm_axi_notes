@@ -1,12 +1,10 @@
 # UVM实战 第 4 章学习笔记：UVM 中的 TLM1.0 通信
-> **核心结论**：TLM1.0 用 transaction 和标准端口替代 component 之间的直接变量访问。PORT 表示操作发起端，EXPORT 用于转发接口，IMP 是最终实现端；判断连接方向时看控制流，判断 transaction 方向时看数据流。
->
-> **记忆主线**：先确定 put/get/transport -> 再确定 blocking/nonblocking -> 发起者使用 PORT -> 层次透传使用 EXPORT -> 最终处理者使用 IMP 或 FIFO。
+
+在 TLM 连接中，PORT 发起调用，EXPORT 可以转发调用，IMP 把调用交给组件中的方法。例如，调用 `get()` 的一方发出请求，事务从实现端返回。
 
 ---
 
 ## 4.0 本章定位
-第 2 章已经使用 analysis_port、blocking_get_port 和 analysis FIFO，本章系统解释这些通信结构。
 
 | 章节 | 核心问题 |
 |------|----------|
@@ -14,28 +12,18 @@
 | 4.2 | PORT、EXPORT、IMP 可以怎样连接 |
 | 4.3 | analysis、多个 IMP 和 FIFO 应该怎样选择 |
 
-学习本章时始终区分三件事：
-
-1. 谁主动调用接口。
-2. transaction 实际流向哪里。
-3. 哪个 component 最终执行 put/get/write 等方法。
-
-### 零基础阅读提示
-
-把 TLM 想成组件之间传递“包裹”的标准接口：
+### TLM 调用中的角色
 
 - PORT 是主动发起调用的一端。
-- EXPORT 是中间转接头。
-- IMP 是真正处理调用的终点。
-- put 表示“我把数据给你”，get 表示“我主动向你要数据”。
+- EXPORT 将接口向外暴露，可把调用转发到下一层。
+- IMP 将调用交给实现了相应方法的组件。
+- 调用 `put()` 向对方发送事务，调用 `get()` 从对方取回事务。
 - analysis 表示广播，发送者不关心有几个订阅者。
-
-判断 PORT 时看谁调用函数，不要看 transaction 最终向哪边流；这是本章最重要也最容易绕晕的一点。
 
 ---
 
-## 4.1 TLM1.0（🔴 高）
-### 4.1.1 验证平台内部的通信（🔴 高）
+## 4.1 TLM1.0
+### 4.1.1 验证平台内部的通信
 component 之间需要交换 transaction，例如 monitor 把采集结果传给 scoreboard。
 
 **不推荐的通信方式**
@@ -78,7 +66,7 @@ monitor 不需要知道 scoreboard 内部队列、比较器和统计变量。
 
 ---
 
-### 4.1.2 TLM 的定义（🔴 高）
+### 4.1.2 TLM 的定义
 TLM 是 Transaction Level Modeling，即事务级建模。
 它关注一笔完整 transaction，而不是 pin 级每个时钟和比特。
 
@@ -118,7 +106,7 @@ A(PORT) <--response-- B(IMP)
 transport 可理解为一次 request-response 操作。
 
 **PORT/EXPORT 描述控制流**
-PORT 和 EXPORT 的判断依据不是 transaction 方向，而是谁发起操作：
+下表列出三种操作的调用方向和数据方向。
 
 | 操作 | 发起者 | 发起端 | transaction 方向 |
 |------|--------|--------|------------------|
@@ -128,7 +116,7 @@ PORT 和 EXPORT 的判断依据不是 transaction 方向，而是谁发起操作
 
 ---
 
-### 4.1.3 UVM 中的 PORT 与 EXPORT（🔴 高）
+### 4.1.3 UVM 中的 PORT 与 EXPORT
 端口名称由“阻塞性质 + 操作 + 角色”组成。
 
 ```text
@@ -186,8 +174,8 @@ uvm_blocking_transport_export #(REQ, RSP);
 
 ---
 
-## 4.2 UVM 中各种端口的互连（🟡 中）
-### 4.2.1 PORT 与 EXPORT 的连接（🟡 中）
+## 4.2 UVM 中各种端口的互连
+### 4.2.1 PORT 与 EXPORT 的连接
 连接由高控制优先级一方调用：
 ```systemverilog
 A_port.connect(B_export);        // [1] 正确：PORT 主动连 EXPORT
@@ -245,7 +233,7 @@ PORT -> EXPORT          ❌ 断了，没人实现 put
 
 ---
 
-### 4.2.2 UVM 中的 IMP（🟡 中）
+### 4.2.2 UVM 中的 IMP
 IMP 是 implementation port，是 TLM 调用链的最终实现端。
 
 控制优先级：
@@ -283,7 +271,7 @@ A.port.put(tr)          // A 发起
  -> B.put(tr)           // 真正执行的是 B 的 put 方法！
 ```
 
-真正处理 transaction 的是 component B 的 `put` 方法——IMP 只是"入口"，具体逻辑在 B 里。
+IMP 将调用交给组件 B 的 `put()`，具体处理逻辑写在 B 中。
 
 **接收 component**
 ```systemverilog
@@ -306,7 +294,7 @@ endclass
 
 ---
 
-### 4.2.3 PORT 与 IMP 的连接（🟡 中）
+### 4.2.3 PORT 与 IMP 的连接
 这是最直接的 TLM 连接。
 
 ```systemverilog
@@ -353,16 +341,14 @@ blocking 调用可以落到 task；nonblocking 操作必须由 function 实现�
 
 **完整的层次化 put 链路**
 
-一段 TLM 连接 = 一串"传话筒" + 一个"干活的人"。先认识四个角色：
+这个例子中，`packet_source` 发起调用，两个 agent 转发，`packet_sink` 接收事务。
 
-| 角色 | 组件 | 干什么 |
+| 角色 | 组件 | 职责 |
 |------|------|--------|
-| **发起者** | `packet_source` | 真正调 `put` 发数据（最底层） |
-| **外层传话筒** | `source_agent` | 把内部发起者的 PORT 透传给外面 |
-| **接收传话筒** | `sink_agent` | 把 EXPORT 接进内部 |
-| **干活的人** | `packet_sink` | 真正实现 `put`，收到数据存队列 |
-
-**连接规则一句话**：每层只做一件事——**发起者用 PORT 往外发，agent 负责透传，接收方用 EXPORT 接进内部，最后落到 IMP 调用的 put 方法**。
+| 发起端 | `packet_source` | 调用 `put()` 发送数据 |
+| 发送端 agent | `source_agent` | 将内部 PORT 接到对外端口 |
+| 接收端 agent | `sink_agent` | 通过 EXPORT 转发调用 |
+| 实现端 | `packet_sink` | 实现 `put()` 并将数据存入队列 |
 
 **最底层发起者**（只管发，8 个包）：
 
@@ -426,20 +412,20 @@ class sink_agent extends uvm_agent;
 endclass
 ```
 
-**env 最后一接，全链贯通**：
+**连接两个 agent**
 
 ```systemverilog
 src_agt.tx_port.connect(sink_agt.rx_export);   // 外部 PORT → 外部 EXPORT，中间一接完成
 ```
 
-**最终调用链**（记住这一条就够了）：
+**`put()` 的调用路径**
 
 ```text
 src.tx_port → src_agt.tx_port → sink_agt.rx_export → sink.rx_imp → sink.put(tr)
     发起             透传               转发             到 IMP        真正干活
 ```
 
-中间全是传话筒，**只有最后的 `sink.put(tr)` 在干活**。调试时从终点 put 反向逐环检查，每级端口操作族（put/get）和 transaction 类型（packet）必须一致。
+调试时可以从 `sink.put(tr)` 向上逐层检查。每一级端口的操作和事务类型都要匹配。
 
 ---
 
@@ -742,8 +728,8 @@ peek 返回对象句柄；若调用者会修改对象，应先 clone，避免间
 
 ---
 
-## 4.3 UVM 中的通信方式（🔴 高）
-### 4.3.1 UVM 中的 analysis 端口（🔴 高）
+## 4.3 UVM 中的通信方式
+### 4.3.1 UVM 中的 analysis 端口
 analysis_port 用于**发布/订阅式广播**：发布者（monitor）把数据"扔出去"，**所有连着的订阅者都能收到**，发布者不管谁收、收几个。
 
 特点：
@@ -812,7 +798,7 @@ cov 再收时看到的 data 已经变了！  // [2] 被坑了
 
 ---
 
-### 4.3.2 一个 component 内有多个 IMP（🔴 高）
+### 4.3.2 一个 component 内有多个 IMP
 scoreboard 要收两路：
 
 - model 发来的 **expected**（期望值）
@@ -866,7 +852,7 @@ class my_monitor extends uvm_monitor;
 endclass
 ```
 
-scoreboard 用两个带后缀的 IMP 接收，核心逻辑一句话：**期望入队、实际取队头比对**：
+scoreboard 用两个带后缀的 IMP 接收事务。期望值先入队，收到实际值时取出队首进行比较。
 
 ```systemverilog
 `uvm_analysis_imp_decl(_expected)     // [1] 宏：生成"期望输入口"类型
@@ -910,7 +896,7 @@ o_agt.ap.connect(scb.act_imp);     // [2] 实际路
 
 ---
 
-### 4.3.3 使用 FIFO 通信（🔴 高）
+### 4.3.3 使用 FIFO 通信
 
 **FIFO = 中间仓库**：把 monitor 的"广播"（analysis，发完不管）转换成 scoreboard 的"拉取"（get，主动要）——发送者只管往里存，接收者按自己节奏取。
 
@@ -1011,7 +997,7 @@ endfunction
 
 **如果 DUT 支持乱序输出，不能按队头一比一**——expected 和 actual 到达顺序可能不同，简单 `pop_front` 会误报 mismatch。**应按 transaction 的 ID/tag/地址建关联数组匹配**。
 
-### 4.3.4 FIFO 上的端口及调试（🟡 中）
+### 4.3.4 FIFO 上的端口及调试
 
 **FIFO 是个"多面手"**：既能当仓库（analysis 写入、get 取出），还自带广播口和调试函数。
 
@@ -1029,7 +1015,7 @@ endfunction
 | get | 是 | **是** |
 | peek | 是 | **否**（只看不取） |
 
-peek = **预览**队头数据（比如先看看是不是要的那笔），真正消费还得 get。
+`peek()` 读取队首但保留该元素，`get()` 读取并移除队首。
 
 **FIFO 自带的两个广播口（put_ap / get_ap）**
 
@@ -1067,10 +1053,10 @@ function void my_env::flush_fifos();
 endfunction
 ```
 
-**清空不是"点一下就完"**：清空前要确认**阻塞 get、scoreboard 队列和 DUT 流水状态**——如果 scoreboard 还卡在 `get()` 等数据，或 DUT 流水里还有货，只清 FIFO 会造成**新旧数据错位**（只清一半比不清更乱）。
-### 4.3.5 用 FIFO 还是用 IMP（🔴 高）
+复位时同时检查 FIFO、scoreboard 的待比对队列，以及 DUT 中尚未完成的事务。还在等待 `get()` 的进程也要和复位流程协调，避免把复位前后的数据配成一对。
+### 4.3.5 用 FIFO 还是用 IMP
 
-**一句话决策**：**简单订阅用 IMP（轻、直接），需要节奏解耦/主动拉取用 FIFO（稳、灵活）**。
+订阅者能在 `write()` 中直接处理事务时，可以用 IMP。需要缓存事务、由接收方按自己的节奏处理时，可以用 FIFO。
 
 | 对比 | 直接 IMP | FIFO |
 |------|----------|------|
@@ -1147,16 +1133,3 @@ end
 **推荐调试顺序**（按步骤走）：print_topology → 确认端口都 new → 从 PORT 沿链追到 IMP → 核对操作族 → 核对类型 → 终点打印日志 → FIFO 看 used/empty/full → check_phase 查残留。
 
 **设计评审自查**（6 问）：推送还是拉取？要不要缓存解耦？订阅者会改共享对象吗？FIFO 容量/复位 flush/残留有策略吗？多通道有 channel/ID 标识吗？所有阻塞调用都能解除阻塞吗？
-## 本章总结（4.1-4.3）
-
-### 学习重点排序
-
-| 优先级 | 必须掌握 |
-|--------|----------|
-| 🔴 高 | PORT 表示发起者，EXPORT 转发，IMP 最终实现 |
-| 🔴 高 | put/get 的控制流与数据流方向不同 |
-| 🔴 高 | 所有连接最终必须落到 IMP 或含 IMP 的 FIFO |
-| 🔴 高 | analysis_port 的一对多 write 广播 |
-| 🟡 中 | blocking/nonblocking 接口方法的区别 |
-| 🟡 中 | FIFO 对 analysis 与 blocking_get 的桥接 |
-| 🟢 进阶 | 多 IMP 后缀、层次透传和端口数组 |

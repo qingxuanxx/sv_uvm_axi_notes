@@ -1,7 +1,6 @@
 # UVM实战 第 8 章学习笔记：UVM 中的 factory 机制
-> **核心结论**：factory 把“代码中请求创建的类型”与“运行时真正创建的类型”分离。只要类已注册、使用 `type_id::create()` 创建且替代类型具有正确继承关系，测试就能在不修改原验证平台结构的情况下替换 transaction、sequence 或 component。
->
-> **记忆主线**：注册类型 -> 设置 override -> 调用 factory create -> factory 查询替换表 -> 创建最终类型 -> 通过虚方法表现派生类行为。
+
+测试可以通过 factory override 替换某个事务或组件的实现。例如，env 仍请求创建原来的 monitor，factory 根据已设置的 override 创建对应的派生类。
 
 ---
 
@@ -24,24 +23,18 @@ flowchart TD
     B -->|"has override"| D["create derived"]
 ```
 
-factory 不是 C++ 意义上的函数重载，也不是约束重载。
-它是一种“实例创建替换机制”。
+### 创建实例时 factory 如何选择类型
 
-### 零基础阅读提示
-
-- 代码里写的是“请求创建什么类型”，factory 决定“最终实际创建什么类型”。
 - `new()` 直接创建指定类型，不查询 factory。
 - `type_id::create()` 会先查询 override 表。
 - type override 影响所有匹配类型，instance override 只影响指定路径。
 - 句柄仍可声明为父类，因为替代类必须继承原类。
 
-读 override 代码时按三步走：先找原类型，再找替代类型，最后确认对象是不是通过 factory 创建。
-
 ---
 
-## 8.1 SystemVerilog 对重载的支持（🟡 中）
+## 8.1 SystemVerilog 对重载的支持
 
-### 8.1.1 任务与函数的重载（🟡 中）
+### 8.1.1 任务与函数的重载
 教材所说的“重载”在这里更接近面向对象中的 override，即子类重写父类虚方法。
 
 ```systemverilog
@@ -124,7 +117,7 @@ endfunction
 
 ---
 
-### 8.1.2 约束的重载（🟡 中）
+### 8.1.2 约束的重载
 SystemVerilog 允许子类用同名 constraint 替换父类 constraint。
 基础 transaction：
 
@@ -202,9 +195,9 @@ assert(tr.randomize() with {
 
 ---
 
-## 8.2 使用 factory 机制进行重载（🔴 高）
+## 8.2 使用 factory 机制进行重载
 
-### 8.2.1 factory 机制式的重载（🔴 高）
+### 8.2.1 factory 机制式的重载
 设置 type override：
 
 ```systemverilog
@@ -292,7 +285,7 @@ function new(string name, uvm_component parent);
 
 ---
 
-### 8.2.2 重载的方式及种类（🔴 高）
+### 8.2.2 重载的方式及种类
 factory override 有两个维度：
 
 ```text
@@ -379,7 +372,7 @@ set_inst_override(
 
 ---
 
-### 8.2.3 复杂的重载（🟡 中）
+### 8.2.3 复杂的重载
 
 **连续重载**
 
@@ -440,7 +433,7 @@ bird -> sparrow
 
 ---
 
-### 8.2.4 factory 机制的调试（🟡 中）
+### 8.2.4 factory 机制的调试
 
 **查看某次创建的解析结果**
 
@@ -471,7 +464,7 @@ factory.debug_create_by_name(
 );
 ```
 
-这些接口用于显示解析过程，不一定真正保留创建对象。
+这两个 `debug_create_*` 接口显示给定类型和实例路径会匹配哪条 override，便于检查替换规则。
 
 **打印 factory 配置**
 
@@ -519,9 +512,9 @@ object 不在 component topology 中，需要通过类型名或对象打印确�
 
 ---
 
-## 8.3 常用的重载（🟡 中）
+## 8.3 常用的重载
 
-### 8.3.1 重载 transaction（🟡 中）
+### 8.3.1 重载 transaction
 基础 sequence 保持不变：
 
 ```systemverilog
@@ -573,7 +566,7 @@ endfunction
 
 ---
 
-### 8.3.2 重载 sequence（🟡 中）
+### 8.3.2 重载 sequence
 父 sequence 嵌套原子 sequence：
 
 ```systemverilog
@@ -619,7 +612,7 @@ set_type_override_by_type(
 
 ---
 
-### 8.3.3 重载 component（🟡 中）
+### 8.3.3 重载 component
 可以替换 driver、monitor、scoreboard 或 reference model。
 CRC 注错 driver：
 
@@ -673,7 +666,7 @@ set_type_override_by_type(
 
 ---
 
-### 8.3.4 重载 driver 以实现所有测试用例（🟡 中）
+### 8.3.4 重载 driver 以实现所有测试用例
 理论上可以把激励生成、数量控制、objection 和驱动都放回 driver，再通过 factory 替换 driver 实现不同 case。
 教材明确不推荐这样做。
 原因：
@@ -695,9 +688,9 @@ factory 是工具，不是让所有变化都集中到 component override 的理�
 
 ---
 
-## 8.4 factory 机制的实现（🟡 中）
+## 8.4 factory 机制的实现
 
-### 8.4.1 创建一个类实例的方法（🟡 中）
+### 8.4.1 创建一个类实例的方法
 普通创建：
 
 ```systemverilog
@@ -722,7 +715,7 @@ factory 通过注册表和代理对象补充这一能力。
 
 ---
 
-### 8.4.2 根据字符串创建一个类（🟡 中）
+### 8.4.2 根据字符串创建一个类
 简化的 registry 思路：
 
 ```systemverilog
@@ -767,7 +760,7 @@ caller casts to expected type
 
 ---
 
-### 8.4.3 用 factory 创建实例的接口（🟡 中）
+### 8.4.3 用 factory 创建实例的接口
 
 **创建 object by name**
 
@@ -850,7 +843,7 @@ connect 完成后再动态插入 component 会破坏 UVM 生命周期和拓扑�
 
 ---
 
-### 8.4.4 factory 机制的本质（🔴 高）
+### 8.4.4 factory 机制的本质
 factory 可以理解为对 `new()` 的增强封装。
 原始 `new()`：
 
@@ -888,9 +881,9 @@ factory 的收益：
 
 ---
 
-## 8.5 factory 设计与调试实践（🟢 低）
+## 8.5 factory 设计与调试实践
 
-### 8.5.1 设置 override 的时机（🟢 低）
+### 8.5.1 设置 override 的时机
 override 必须发生在目标对象创建之前。
 推荐在 test 的 `build_phase()` 中先设置，再调用会创建目标的父类逻辑时要特别谨慎。
 
@@ -905,7 +898,7 @@ endfunction
 若 `super.build_phase()` 先完成对象创建，后设置 override 对已存在对象无效。
 具体顺序要根据父类实现决定，不能机械地认为 `super` 永远第一句。
 
-### 8.5.2 factory 与 config_db 的分工（🟢 低）
+### 8.5.2 factory 与 config_db 的分工
 
 | 需求 | 使用机制 |
 |------|----------|
@@ -916,7 +909,7 @@ endfunction
 不要为一个布尔配置创建大量派生类。
 也不要用 config_db 模拟复杂多态算法。
 
-### 8.5.3 可维护的 override 原则（🟢 低）
+### 8.5.3 可维护的 override 原则
 - 基类应提供稳定接口和默认行为。
 - 派生类只覆盖必要行为。
 - 优先 type-safe 的 by-type API。
@@ -924,19 +917,3 @@ endfunction
 - 每个 override 都应有针对性的测试。
 - 回归日志记录最终 factory 配置。
 - 不依赖复杂的隐式 override 链。
-
----
-
-## 本章总结（8.1-8.4）
-
-### 学习重点排序
-
-| 优先级 | 必须掌握 |
-|--------|----------|
-| 🔴 高 | factory override 生效的四个前提 |
-| 🔴 高 | `new()` 与 `type_id::create()` 的区别 |
-| 🔴 高 | type override 与 instance override |
-| 🔴 高 | transaction、sequence、component 重载点选择 |
-| 🟡 中 | 连续重载、replace 参数与调试接口 |
-| 🟡 中 | by-type 与 by-name 的差异 |
-| 🟢 进阶 | registry、proxy 和字符串创建原理 |

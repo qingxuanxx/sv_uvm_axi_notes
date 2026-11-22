@@ -1,12 +1,10 @@
 # UVM实战 第 6 章学习笔记：UVM 中的 sequence
-> **核心结论**：sequence 负责描述“产生什么激励以及按什么顺序产生”，driver 只负责“怎样把 transaction 驱动到 DUT”。sequencer 位于二者之间，完成请求仲裁、握手和应答路由。
->
-> **记忆主线**：sequence 产生 item -> sequencer 仲裁 -> driver 取 item 并驱动 -> item_done 完成握手 -> 可选 response 返回 sequence。
+
+sequence 产生请求，sequencer 对请求进行仲裁。使用 `get_next_item()` 的 driver 取得请求并驱动接口，处理完后调用 `item_done()` 完成这次握手。需要返回结果时，还可以把 response 送回发起请求的 sequence。
 
 ---
 
 ## 6.0 本章定位
-本章把前面零散使用的 sequence 机制系统化。
 
 | 章节 | 核心问题 |
 |------|----------|
@@ -18,30 +16,29 @@
 | 6.6 | sequence 如何使用 `config_db` |
 | 6.7 | driver 如何向 sequence 返回 response |
 | 6.8 | sequence library 如何随机选择测试场景 |
-学习时要分清三个对象：
+三个对象在平台中的角色如下。
 
-1. sequence 是 `uvm_object`，不是 component。
+1. sequence 派生自 `uvm_object`，描述要发送的激励。
 2. sequencer 是 `uvm_component`，负责仲裁与转发。
 3. driver 是 `uvm_component`，负责引脚级驱动。
 
-### 零基础阅读提示
-先牢牢记住一条流水线——**sequence 管"造"，sequencer 管"派"，driver 管"打"**：
+### 一次 item 握手
 
 ```text
-sequence 造出 req → sequencer 排队 → driver 取走 req → item_done 告知完成
+sequence 申请并获得授权 → sequence 提交 req → driver 通过 get_next_item() 取请求 → item_done() 完成握手
 ```
 
-四个握手点对号入座：
+下表按调用方列出握手方法。
 
-| 方法 | 谁调用 | 干什么 | 类比 |
-|------|--------|--------|------|
-| `start_item()` | sequence | 申请发送资格（排队等批准） | 取号排队 |
-| `finish_item()` | sequence | 提交 item，等 driver 完成握手 | 递交材料 |
-| `get_next_item()` | driver | 主动取请求（没货就阻塞等） | 取货 |
-| `item_done()` | driver | 归还完成通知 | 签收 |
+| 方法 | 调用方 | 作用 |
+|------|--------|------|
+| `start_item()` | sequence | 向 sequencer 申请仲裁授权 |
+| `finish_item()` | sequence | 提交 item，等待此次握手完成 |
+| `get_next_item()` | driver | 取得请求，有需要时阻塞等待 |
+| `item_done()` | driver | 通知 sequencer 此次请求已处理 |
 
-- **virtual sequence 是"总指挥"**：不直接驱动 DUT，只负责协调多个真实 sequencer（比如同时启动读写两个 sequence）。
-- **`uvm_do` 是"四合一"宏**：第一次写可以先用它，但要知道内部 = 创建 + 随机化 + 仲裁 + 发送四步。
+- virtual sequence 可以在不同 sequencer 上启动子 sequence，协调多个接口的激励。
+- 对于 item，`uvm_do` 宏封装了创建、申请授权、随机化和提交的过程。
 
 典型数据通路（数据从 sequence 一路流到 DUT）：
 
@@ -61,12 +58,10 @@ test / virtual sequence
          DUT
 ```
 
-> 记忆：**sequence 管造、sequencer 管派、driver 管打；四个握手点 start/finish/get/done 把它们串成一条流水线。**
-
 ---
 
-## 6.1 sequence 基础（🔴 高）
-### 6.1.1 从 driver 中剥离激励产生功能（🔴 高）
+## 6.1 sequence 基础
+### 6.1.1 从 driver 中剥离激励产生功能
 
 **核心：激励"造什么"和"怎么打"必须分开——sequence 管造，driver 只管打。**
 
@@ -155,8 +150,7 @@ uvm_object
 
 注意：**sequence 本身也是 uvm_sequence_item 的派生**——所以宏（uvm_do）既能操作 item，也能操作子 sequence（嵌套调用就是靠这一点）。
 
-> 记忆：**sequence 管造、driver 管打、sequencer 管派；加场景 = 加 sequence，稳定代码一行不改；sequence 本质是"可复用的事务级激励程序"。**
-### 6.1.2 sequence 的启动与执行（🔴 高）
+### 6.1.2 sequence 的启动与执行
 
 **核心：启动 sequence = 调 `start()`，指定跑在哪个 sequencer 上。**
 
@@ -234,8 +228,6 @@ endtask
 | pre_body / post_body | body 前后 | 可选（控制 objection 常用） |
 | **body** | 中间 | **必须写** |
 
-> 记忆：**回调流程 = 开工前准备(pre) → 正式干活(body) → 收尾(post)；body 必写，pre/post 可选——只有要在干活前后做点什么时才需要它们。**
-
 **default_sequence：用 config_db "预约"序列**
 
 不想手工 start，可以**提前把 sequence 挂到某个 sequencer 的某个 phase 上**，phase 一到自动启动：
@@ -283,9 +275,8 @@ endtask
 
 注意：**顶层 sequence 控制 objection；被嵌套的子 sequence 通常不重复控制**（避免重复 raise/drop）；现代写法也可用 `set_starting_phase()` 或 phase 自动机制。
 
-> 记忆：**启动 = start(sequencer)；流程 = pre_start → pre_body → body → post_body → post_start；default_sequence 是"预约"，显式 start 是"直派"，推荐显式；starting_phase 让 sequence 知道在哪干活、好控制 objection。**
-## 6.2 sequence 的仲裁机制（🟡 中）
-### 6.2.1 在同一 sequencer 上启动多个 sequence（🟡 中）
+## 6.2 sequence 的仲裁机制
+### 6.2.1 在同一 sequencer 上启动多个 sequence
 
 **核心：多个 sequence 抢同一个 sequencer 时，谁先发由"仲裁"决定——仲裁粒度是"一次一个 item"，不是"一个 sequence 跑完"。**
 
@@ -327,7 +318,7 @@ fork
 join
 ```
 
-**⚠️ 关键坑**：优先级**是否真正生效取决于仲裁模式**——如果模式是 FIFO（按先来后到），优先级设了也白设。
+优先级是否参与仲裁取决于仲裁模式。默认 FIFO 按请求顺序授权。
 
 **仲裁模式：6 种，按场景选**
 
@@ -340,17 +331,15 @@ join
 | `UVM_SEQ_ARB_STRICT_RANDOM` | 先选最高优先级，再随机 | QoS + 随机 |
 | `UVM_SEQ_ARB_USER` | 调用户自定义仲裁函数 | 复杂业务规则 |
 
-**选择建议**（面试可答）：协议流量用 FIFO；模拟 QoS 用 weighted/strict；压力测试用 random；复杂规则才 user。
+按到达顺序处理请求可选 FIFO。模拟 QoS 时可选 weighted 或 strict 模式，随机施压可选 random，自定义仲裁规则可选 user。
 
-**两个必须记住的结论**：
+**优先级的作用范围**
 
-1. **高优先级 ≠ 永久独占**——它只影响"每一次"仲裁的选择，想独占必须用 lock/grab（6.2.2 讲）；
-2. 优先级设了但模式是 FIFO = 白设（先确认仲裁模式）。
+1. 优先级作用于单次仲裁。要让一组请求连续获得授权，可以申请 `lock()` 或 `grab()`。
+2. FIFO 模式按请求顺序仲裁。
+### 6.2.2 sequencer 的 lock 操作
 
-> 记忆：**仲裁粒度 = 一个 item 发一次、重新仲裁一次，所以多 sequence 是"交替发"不是"排队发完"；优先级只影响单次仲裁，要独占靠 lock/grab；选模式：流量 FIFO、QoS weighted/strict、压力 random。**
-### 6.2.2 sequencer 的 lock 操作（🟡 中）
-
-**核心：lock = "锁住 sequencer"——拿到锁后，其他 sequence 一律排队，你连续发完再解锁。适用于"一组 transaction 必须一口气发完、不能被插入"的场景。**
+一组 transaction 需要连续发送时，sequence 可以先申请锁，发送完毕后再释放。
 
 **用法：lock() → 连续发 → unlock()**
 
@@ -372,7 +361,7 @@ virtual task body();
 endtask
 ```
 
-**lock 的语义（5 步，记住"排队申请 → 独占 → 释放"）**
+**申请和释放锁的过程**
 
 1. **提交锁请求**——它自己也进仲裁队列，不是立刻生效；
 2. 锁请求**按当前仲裁规则等待**（优先级照样起作用）；
@@ -395,10 +384,9 @@ endtask
 | 持锁期间阻塞等外部事件 | 长期占用 sequencer（别人全等着） |
 | 子 sequence 锁范围不清 | 调试困难（不知道锁到哪一层） |
 
-> 记忆：**lock 是"独占通行证"——排队申请 → 拿到后连续发、别人排队 → 用完必须 unlock，否则饿死别人。原子操作/配置序列/连续 burst/初始化 4 类场景用 lock。**
-### 6.2.3 sequencer 的 grab 操作（🟡 中）
+### 6.2.3 sequencer 的 grab 操作
 
-**核心：grab = lock 的"插队版"——同样独占 sequencer，但 grab 请求直接插到所有 lock 请求前面，适合真正紧急的控制流（复位、错误恢复）。**
+`grab()` 把独占请求放到仲裁队列前端。请求获得授权后，sequence 持有独占权，调用 `ungrab()` 时释放。
 
 **用法：grab() → 连续发 → ungrab()**
 
@@ -423,20 +411,16 @@ endtask
 | 紧急程度 | 普通原子操作 | 紧急控制流 |
 | 释放方法 | `unlock()` | `ungrab()` |
 
-**两个重要限制**（容易误解，记住）：
+**生效时机**
 
-1. **grab 不能中断 driver 正在处理的 item**——它只能影响"下一次仲裁"，正在打的 item 照常打完；
-2. 它只影响**后续的 sequencer 仲裁**，不是瞬间接管。
+`grab()` 影响后续仲裁，driver 继续处理已经接手的 item。
 
-**使用原则**（4 条）
+**选择和释放独占请求**
 
-- 普通原子序列优先用 **lock()**（grab 太霸道，别滥用）；
-- 真正紧急的**复位、错误恢复**才考虑 grab()；
-- **独占范围越短越好**（锁/抢的时间越短，别人饿死的风险越小）；
-- **所有退出路径都要释放**所有权（异常分支也别忘 unlock/ungrab）。
+- 需要按队列顺序申请独占时用 `lock()`。复位、错误恢复等请求需要排到队首时可用 `grab()`。
+- 尽量缩短持有时间，并在各退出路径上调用对应的 `unlock()` 或 `ungrab()`。
 
-> 记忆：**grab = lock 的插队版——同样独占，但请求插队到最前面；只能影响后续仲裁、不能打断正在打的 item；普通原子用 lock、真紧急（复位/错误恢复）才 grab；范围越短越好、退出必释放。**
-### 6.2.4 sequence 的有效性（🟢 进阶）
+### 6.2.4 sequence 的有效性
 sequence 可以主动暂时退出仲裁。
 sequencer 通过 `is_relevant()` 判断 sequence 当前是否有效。
 默认实现返回 1。
@@ -477,12 +461,12 @@ is_relevant=0   主动放弃自己参与 sequencer 仲裁的机会
 
 ---
 
-## 6.3 sequence 相关宏及其实现（🔴 高）
-### 6.3.1 `uvm_do` 系列宏（🔴 高）
+## 6.3 sequence 相关宏及其实现
+### 6.3.1 `uvm_do` 系列宏
 
-**核心：uvm_do 是"四合一"便捷宏（创建 + 随机化 + 发送 + 等待完成）；它有个大家族，通过"要不要指定 sequencer / 优先级 / 约束"三选组合。面试常问：uvm_do 到底干了什么。**
+对 sequence item，`uvm_do` 封装了创建、申请仲裁、随机化和发送。宏的不同变体可以指定 sequencer、优先级和内联约束。
 
-**宏家族总表**（记住"三要素"组合）
+**宏及其参数**
 
 | 宏 | 指定 sequencer | 优先级 | 附加约束 |
 |----|:---:|:---:|:---:|
@@ -553,8 +537,7 @@ create item → wait_for_grant/start_item → pre_do → randomize
 2. **宏简洁，但调试复杂握手时展开成 start_item/finish_item**（看得清每一步）；
 3. 需要显式指定 sequencer 用 `_on` 系列（virtual sequence 里常用）。
 
-> 记忆：**uvm_do = 创建+随机化+发送+等完成 四合一；三要素（sequencer/优先级/约束）靠 _on/_pri/_with 组合；内联约束直接写字段、同名加对象名；随机化失败要报错、调试复杂握手就展开成显式四步。**
-### 6.3.2 `uvm_create` 与 `uvm_send`（🔴 高）
+### 6.3.2 `uvm_create` 与 `uvm_send`
 
 **核心：uvm_do 是"一条龙"（创建+随机化+发送一起干），uvm_create/uvm_send 是"拆开干"——create 只管创建，send 只管发送，中间留出空间让你随机化后手动改数据。**
 
@@ -614,7 +597,7 @@ assert(req.randomize());
 - 需要**精确定位随机化失败**发生在哪一步（拆开才能分清是创建、随机化还是发送的问题）。
 
 > 记忆：**create 只管造、send 只管发、中间留缝改数据——需要"随机化后动手脚"（写 CRC/序号/关联字段）时把 uvm_do 拆开用；随机化失败用 assert 当场 fatal。**
-### 6.3.3 `uvm_rand_send` 系列宏（🟡 中）
+### 6.3.3 `uvm_rand_send` 系列宏
 
 **核心：uvm_rand_send = "同一个对象，反复随机化、反复发送"——对象只创建一次，每次发送前重新随机化。**
 
@@ -661,8 +644,8 @@ endtask
 | analysis 广播后要保留历史 | 必须 **clone/copy** 再存，否则存的还是同一个对象 |
 | 并行发送共享一个 item | 两个 sequence 同时用同一个可变对象 = **数据串扰** |
 
-> 记忆：**rand_send = 复用对象反复随机化发送；因为复用，别人存的句柄会被下一次随机化改掉——要保留历史就 clone，并行发送别共用一个可变对象。**
-### 6.3.4 `start_item` 与 `finish_item`（🔴 高）
+接收方若要保留事务历史，应在源对象再次随机化前复制它。并行发送时，每个发送者应有独立的可变对象。
+### 6.3.4 `start_item` 与 `finish_item`
 
 **核心：start_item = "申请到发送资格"，finish_item = "把 item 交出去并等 driver 完成"——两者必须成对，中间要"快进快出"，别占着资格干别的。**
 
@@ -707,8 +690,8 @@ start_item(req);
 finish_item(req);
 ```
 
-> 记忆：**start = 取号，finish = 交货，中间快进快出；授权后尽快随机化发送，耗时等待放 start 之前；finish 返回 ≠ DUT 处理完（那是 drain time 的事）。**
-### 6.3.5 `pre_do`、`mid_do` 与 `post_do`（🟡 中）
+获得授权后，完成随机化并及时提交 item。`finish_item()` 返回表示 driver 已完成约定的握手，DUT 的输出可能稍后才到达。
+### 6.3.5 `pre_do`、`mid_do` 与 `post_do`
 
 **核心：这三个回调让"父 sequence"能在子 item/子 sequence 执行的三个时刻"插一脚"——发送前观察准备、随机化后改字段、发送完成后收尾。适合横切逻辑（每个 item 都要做的公共事），不适合放业务主逻辑。**
 
@@ -766,9 +749,8 @@ endfunction
 
 **不要把大量业务逻辑藏进回调**——否则读 body() 时根本看不出最终 item 长什么样，调试困难。回调只放"每个 item 都要做的公共事"。
 
-> 记忆：**pre_do 看门、mid_do 改字段（算 CRC）、post_do 收尾；它们对每个 item/子 sequence 自动触发，适合横切逻辑；业务主逻辑别塞进来，否则 body 读不懂。**
-## 6.4 sequence 进阶应用（🟡 中）
-### 6.4.1 嵌套的 sequence（🟡 中）
+## 6.4 sequence 进阶应用
+### 6.4.1 嵌套的 sequence
 
 **核心：sequence 里还能再启动别的 sequence——把"原子场景"组合成"复杂业务流程"。就像搭积木：小块（crc 错包、长包）拼成大块（混合流程）。**
 
@@ -830,8 +812,7 @@ mixed_sequence.body
 
 **⚠️ 注意**：子 sequence 的 parent 要指向当前 sequence；子 sequence 通常**不独立 raise/drop** 顶层 objection（由顶层控制，避免重复计数）。
 
-> 记忆：**嵌套 = 大 sequence 的 body 里 uvm_do 小 sequence——uvm_do 传 item 发包、传 sequence 启动子 sequence（因为 sequence 也是 uvm_sequence_item 派生）；原子场景拼业务流，子 sequence 别自己 raise/drop objection。**
-### 6.4.2 在 sequence 中使用 rand 类型变量（🟡 中）
+### 6.4.2 在 sequence 中使用 rand 类型变量
 
 **核心：sequence 自己也可以有 rand 字段——"场景级随机"（发几包、每包多长）由 sequence 随机，item 字段由 item 随机，两层随机分开管。**
 
@@ -877,8 +858,8 @@ seq.start(env.i_agt.sqr);
 
 **意义**：想调"场景"（比如只发 20 包）就约束 sequence，想调"单包"就约束 item——**互不干扰，分层管理**。
 
-> 记忆：**sequence 也能 rand——管"发多少、多长"（场景级），item 管"每包内容"（单包级）；item 约束里引用 sequence 字段要加 local::；启动前先 randomize sequence。**
-### 6.4.3 transaction 类型的匹配（🟡 中）
+子 sequence 生成多笔 item 时，可以用自身的随机字段控制笔数或长度分布。内联约束通过 `local::` 引用同名的外层字段。
+### 6.4.3 transaction 类型的匹配
 
 **核心：sequence、sequencer、driver 三者的 REQ 类型必须兼容——推荐直接用同一个 transaction 类型。类型不匹配会在编译、连接或运行时 cast 阶段炸。**
 
@@ -909,8 +890,8 @@ if (!$cast(ext, req))                    // [1] 把 req 安全转成扩展类型
 
 **⚠️ 警告**：**不要指望 factory 让不兼容的类型"碰巧能跑"**——那是侥幸，不是设计。
 
-> 记忆：**REQ = sequence 发送的 transaction 类型，三件套必须一致；driver 收派生 transaction 靠多态，但用派生字段必须 $cast + 检查；别赌 factory 能救不兼容的类型。**
-### 6.4.4 `p_sequencer` 的使用（🔴 高）
+通过基类句柄读取派生类专有字段前，先用 `$cast` 转换并检查返回值。
+### 6.4.4 `p_sequencer` 的使用
 
 **核心：sequence 想访问 sequencer 的"自定义字段"（比如 sequencer 里的 port_id），默认的 m_sequencer 是通用类型做不到——p_sequencer 是"强类型版"，能直接访问用户 sequencer 的专属内容。**
 
@@ -955,8 +936,7 @@ endclass
 2. **过度依赖 p_sequencer 降低可复用性**——sequence 绑死了 sequencer 类型，换个平台就废；
 3. **通用 sequence 应优先通过配置对象（config_db）传参数**，而不是直接摸 sequencer 的字段。
 
-> 记忆：**m_sequencer 是通用句柄、p_sequencer 是强类型句柄（宏声明+自动转换）；要用 sequencer 自定义字段就用 p_sequencer，但必须判空、别滥用——通用 sequence 优先走 config_db 传参，可复用性更高。**
-### 6.4.5 sequence 的派生与继承（🟡 中）
+### 6.4.5 sequence 的派生与继承
 
 **核心：用继承扩展 sequence——把"稳定流程"放基类，"会变化的步骤"做成虚方法，派生类只覆盖变化的部分。这就是 OOP 的"模板方法"模式：流程写一次，策略随便换。**
 
@@ -1001,31 +981,30 @@ endclass
 - **用 factory 注册**——配合 type override，可以在不改代码的情况下换策略（比如命令行换成 error 版）；
 - **避免过深的继承树**（两层三层就好，太深难读难维护）。
 
-> 记忆：**继承扩展 = 基类写流程 + 虚方法当钩子，派生类只覆盖钩子——"模板方法"；流程一份、策略多变；配 factory override 能不改代码换场景，但别把继承树挖太深。**
-## 6.5 virtual sequence 的使用（🔴 高）
-### 6.5.1 带双路输入输出端口的 DUT（🔴 高）
+## 6.5 virtual sequence 的使用
+### 6.5.1 带双路输入输出端口的 DUT
 
-**核心**：DUT 有多个接口（如 bus + ethernet）时，每个接口一个 sequencer——普通 sequence 只能绑一个，virtual sequence 是"总指挥"：自己不产生激励，body 里用 `uvm_do_on` 把子 sequence 派到不同的 sequencer。
+这个 DUT 有总线和以太网两个接口，各有一个 sequencer。virtual sequence 在 `body()` 中指定目标 sequencer，分别启动两个接口的子 sequence。
 
 **结构：virtual sequence → virtual sequencer → 各真实 sequencer**
 
 ```mermaid
 flowchart TD
-    VS["virtual_sequence（总指挥：不直接发激励）"] --> VSR["virtual_sequencer（只保存真实 sequencer 的句柄）"]
+    VS["virtual sequence（协调子 sequence）"] --> VSR["virtual sequencer（保存两个接口的 sequencer 句柄）"]
     VSR --> PB["p_bus_sqr"]
     VSR --> PE["p_eth_sqr"]
-    PB --> BS["bus_sequence（真实 sequence，真正发激励）"]
-    PE --> ES["eth_sequence（真实 sequence，真正发激励）"]
+    PB --> BS["bus sequence（配置寄存器）"]
+    PE --> ES["eth sequence（发送数据）"]
     BS --> BD["bus_driver"]
     ES --> ED["eth_driver"]
 ```
 
-**关键理解**：**virtual sequencer 不直接连 driver**——它只是一个"句柄收纳盒"，装着各真实 sequencer 的句柄。
+virtual sequencer 保存 `p_bus_sqr` 和 `p_eth_sqr` 两个句柄，供 virtual sequence 访问各接口的 sequencer。
 
 **① virtual sequencer：只存句柄**
 
 ```systemverilog
-class my_virtual_sequencer extends uvm_sequencer;   // [1] 定义"盒子"：一个 sequencer 类
+class my_virtual_sequencer extends uvm_sequencer;   // [1] 为各接口保存 sequencer 句柄
     `uvm_component_utils(my_virtual_sequencer)      // [2] 注册（组件标准动作）
     bus_sequencer p_bus_sqr;    // [3] 抽屉 1：准备装真实 bus sequencer 句柄
     eth_sequencer p_eth_sqr;    // [4] 抽屉 2：准备装真实 eth sequencer 句柄
@@ -1047,27 +1026,23 @@ endfunction
 ```systemverilog
 class system_virtual_sequence extends uvm_sequence;
     `uvm_object_utils(system_virtual_sequence)   // [1] 注册（virtual sequence 是 object）
-    `uvm_declare_p_sequencer(my_virtual_sequencer)  // [2] 宏：把所在 sequencer 强类型成"盒子"，body 才能用 p_sequencer
+    `uvm_declare_p_sequencer(my_virtual_sequencer)  // [2] 声明强类型的 p_sequencer 句柄
 
     virtual task body();
         bus_config_sequence cfg_seq;   // [3] 子 sequence 句柄（真正发激励的）
         eth_data_sequence   data_seq;
-        `uvm_do_on(cfg_seq, p_sequencer.p_bus_sqr)   // [4] 打开盒子拿 bus sequencer，把 cfg_seq 派过去
-        `uvm_do_on(data_seq, p_sequencer.p_eth_sqr)  // [5] 打开盒子拿 eth sequencer，把 data_seq 派过去
+        `uvm_do_on(cfg_seq, p_sequencer.p_bus_sqr)   // [4] 在总线接口上运行配置序列
+        `uvm_do_on(data_seq, p_sequencer.p_eth_sqr)  // [5] 在以太网接口上运行数据序列
     endtask
 endclass
 ```
 
-**注意 `uvm_do_on`**：和 `uvm_do` 的区别就是多了"指定 sequencer"（6.3 学的 `_on` 后缀）——这里显式派到 p_sequencer 里的某个真实 sequencer。
+两次 `uvm_do_on` 指定了不同的 sequencer。先在 `p_bus_sqr` 上运行 `cfg_seq` 配置寄存器，配置结束后，再在 `p_eth_sqr` 上运行 `data_seq` 发送以太网数据。
+### 6.5.2 sequence 之间的同步
 
-**virtual sequence 的价值**：不是"发送一种特殊 transaction"，而是**组织系统级流程**——"先配 bus 寄存器，再发 eth 数据"这种跨接口协调，普通 sequence 做不到。
+在同一线程中依次启动子 sequence 可以控制先后顺序，需要并发时可以分别放入 `fork` 的不同分支。
 
-> 记忆：**virtual sequence = 总指挥（自己不做）；virtual sequencer = 句柄收纳盒（不连 driver）；uvm_do_on 把子 sequence 派到指定 sequencer；价值是组织系统级流程。**
-### 6.5.2 sequence 之间的同步（🔴 高）
-
-**核心：virtual sequence 里多个子 sequence 的"先后/并行"关系，靠两样东西控制——代码顺序（串行）和 fork/join（并行）。**
-
-**顺序同步：代码按顺序写，天然串行**
+**顺序执行**
 
 ```systemverilog
 `uvm_do_on(reset_seq,  p_sequencer.p_bus_sqr)   // [1] 先复位
@@ -1075,7 +1050,7 @@ endclass
 `uvm_do_on(data_seq,   p_sequencer.p_eth_sqr)   // [3] 后发数据（等配置结束）
 ```
 
-**关键**：`uvm_do_on` 是**阻塞**的——后一个 sequence **只有在前一个完全结束后才启动**。这就是最简单的顺序同步：**代码顺序 = 执行顺序**（先复位 → 再配置 → 后数据）。
+这个例子依次完成复位、配置和发数据。每次 `uvm_do_on` 返回后，下一次调用才开始。
 
 **并行同步：fork/join 控制**
 
@@ -1099,8 +1074,7 @@ join                                             // [3] 等两路都完成
 - `join_any` 继续后，**没跑完的线程仍会运行**——如果不等它们就结束 phase，会被强杀或产生残留；
 - `join_none` 完全不等待，**必须自己设计收尾**（比如 `wait fork` 等所有派生线程结束）——否则 sequence 结束了后台还在跑。
 
-> 记忆：**顺序同步 = 代码顺序（uvm_do_on 阻塞，前一个结束才启动下一个）；并行同步 = fork/join——join 等全部、join_any 等一个、join_none 不等但要自己收尾。**
-### 6.5.3 sequence 之间的复杂同步（🟡 中）
+### 6.5.3 sequence 之间的复杂同步
 
 **核心：顺序同步靠代码顺序、简单并行靠 fork/join，但"一个 sequence 要等另一个的某个时刻"这种握手式同步，需要 uvm_event 或共享状态 + wait。**
 
@@ -1123,9 +1097,9 @@ virtual task body();
 endtask
 ```
 
-**关键理解**：`trigger()` 是"发信号"，`wait_trigger()` 是"等信号"——配置线程干完触发，数据线程等到触发才启动。比"纯 fork/join"更精确：**数据流不用等配置线程完全结束（join 语义），而是等它干到"配置完成"这个节点**。
+配置线程调用 `cfg_done.trigger()` 时，已经在 `wait_trigger()` 上等待的数据线程被唤醒，随后启动 `data_seq`。
 
-**方式二：共享状态 + wait**（更简单粗暴）
+**用共享标志表示配置完成**
 
 ```systemverilog
 bit cfg_finished;
@@ -1135,26 +1109,25 @@ fork
         cfg_finished = 1'b1;             // [1] 配置完置标志
     end
     begin
-        wait (cfg_finished);             // [2] 轮询等待标志
+        wait (cfg_finished);             // [2] 等待配置完成标志为 1
         data_seq.start(p_sequencer.p_data_sqr);
     end
 join
 ```
 
-**注意**：`wait(cfg_finished)` 是**轮询**（每个时间步检查），uvm_event 的 `wait_trigger` 是**事件驱动**（更高效）。标志法简单但要注意标志初值和复位清理。
+如果 `cfg_finished` 已经为 1，`wait(cfg_finished)` 立即通过。若初值为 0，线程阻塞，直到该条件为真。下一轮配置开始前应清零标志。
 
-**复杂同步的 5 个问题**：
+**并发同步中要检查的问题**
 
-1. **事件先 trigger 后 wait 会不会丢？** ——uvm_event 默认会"记住"触发状态，后 wait 也能等到（已触发则立即返回）；普通 event 则可能丢失；
+1. **触发和等待谁先执行？** `wait_trigger()` 等待下一次触发，先触发再等待会错过这一次通知。若要识别同一仿真时间片中已经发生的触发，可以用 `wait_ptrigger()`。
 2. **复位后事件状态要清理吗？** ——复位后旧触发状态可能残留，要 `reset()`；
 3. **事件是"单次通知"还是"计数信号"？** ——单次用 event，要计数/多次用 semaphore 或队列；
 4. **并发分支失败，谁负责结束其他分支？** ——一个分支报错，另一个还卡在 wait 上会挂死，要有超时或清理机制；
 5. **sequence 退出时还有后台线程吗？** ——join_none/join_any 留下的线程要确认收尾（wait fork）。
 
-> 记忆：**握手式同步用 uvm_event（trigger/wait_trigger，事件驱动、可记住状态）或共享标志 + wait（轮询）；复杂同步五问——事件丢失、复位清理、单次或计数、失败清理、后台线程。**
-### 6.5.4 仅在 virtual sequence 中控制 objection（🔴 高）
+### 6.5.4 仅在 virtual sequence 中控制 objection
 
-**核心：objection 由"顶层"统一控制（test 或 virtual sequence），子 sequence 一律不管——避免多个子 sequence 各自 raise/drop 导致的责任混乱。**
+下面两种写法分别由 test 或顶层 virtual sequence 持有 objection，直到整组子 sequence 执行完毕。
 
 **test 统一控制**（推荐）：
 
@@ -1187,8 +1160,7 @@ endtask
 - **避免重复 raise/drop**——不会出现多个子 sequence 各自加减计数；
 - **易于设置 drain time**——drain time 挂在顶层 phase 上，一次设置全平台生效。
 
-> 记忆：**objection 统一由顶层管（test 或 virtual sequence）——顶层 raise、跑完 drop；子 sequence 只发激励不碰 objection；结束清晰、组合自由、drain 好设。**
-### 6.5.5 在 sequence 中慎用 fork（🟡 中）
+### 6.5.5 在 sequence 中慎用 fork
 
 **核心：sequence 里 fork 出的后台线程，sequence 结束≠线程结束——最危险的是 `join_none` 后 body 直接返回，后台线程成了"野线程"。**
 
@@ -1225,16 +1197,15 @@ endtask
 
 **关键改进**：① 后台用 `while(!标志)` 而不是 `forever`——有明确的退出条件；② 前台干完置标志；③ 用 `join` 等后台真正退出——**sequence 结束时没有任何残留线程**。
 
-**四条原则**（记住）：
+**后台线程的退出条件**
 
 1. **能 join 就明确 join**——让所有线程都在 body 内结束；
 2. **用 join_any 后明确处理剩余线程**（不能放着不管）；
 3. **用 join_none 时提供可验证的退出条件**（如标志位/事件）；
 4. **循环索引传入 fork 时声明 automatic 副本**（否则所有线程共享同一个 i，6.3 多端口数组的坑）。
 
-> 记忆：**sequence 里 fork 后台线程要"管得住"——join_none + forever = 野线程（挂起/强杀/累积）；正确姿势是标志位退出 + join 收尾；循环索引记得 automatic。**
-## 6.6 在 sequence 中使用 `config_db`（🟡 中）
-### 6.6.1 在 sequence 中获取参数（🟡 中）
+## 6.6 在 sequence 中使用 `config_db`
+### 6.6.1 在 sequence 中获取参数
 
 **获取配置：借 m_sequencer 当上下文**
 
@@ -1279,7 +1250,7 @@ seq.packet_count = cfg.packet_count;   // [1] 从配置对象取值，直接赋�
 seq.start(env.i_agt.sqr);
 ```
 
-### 6.6.2 在 sequence 中设置参数（🟡 中）
+### 6.6.2 在 sequence 中设置参数
 
 **sequence 也能通过 m_sequencer 上下文 set 配置**：
 
@@ -1306,7 +1277,7 @@ uvm_config_db #(bit)::set(
           $sformatf("context=%s", m_sequencer.get_full_name()),   // [1] 打印当前 sequencer 路径
           UVM_LOW)
 ```
-### 6.6.3 `wait_modified` 的使用（🟢 低）
+### 6.6.3 `wait_modified` 的使用
 `wait_modified` 等待某个配置项被重新设置。
 ```systemverilog
 virtual task body();
@@ -1330,8 +1301,8 @@ endtask
 
 ---
 
-## 6.7 response 的使用（🔴 高）
-### 6.7.1 `put_response` 与 `get_response`（🔴 高）
+## 6.7 response 的使用
+### 6.7.1 `put_response` 与 `get_response`
 
 **核心：response 是 driver → sequence 的"回执"——sequence 发请求后需要知道执行结果（读到的数据、成功/失败），driver 干完活把结果"回寄"给发起请求的那个 sequence。**
 
@@ -1401,8 +1372,8 @@ sequence: uvm_do_with(req) → sequencer → driver
 2. **get_response 必须和 req 配对**——每次带 get_response 的请求，都要对应一个 item_done(rsp)；
 3. **rsp 类型要和 req 兼容**——一般用同一个 item 类（读时 req/rsp 都是 bus_item）。
 
-> 记忆：**response = driver 回给 sequence 的执行结果——driver 调 item_done(rsp)（或 item_done()+put_response）返回，sequence 用 get_response 阻塞等；set_id_info(req) 让 rsp 带上原请求的路由 ID，sequencer 才能送回正确的 sequence。**
-### 6.7.2 response 的数量问题（🟡 中）
+driver 返回独立的 `rsp` 对象时，应调用 `rsp.set_id_info(req)` 复制路由信息，让 sequencer 把响应送回发起请求的 sequence。
+### 6.7.2 response 的数量问题
 
 **核心：driver 每次 `item_done(rsp)` 都会往 sequence 的 response queue 塞一个 rsp。如果 sequence 只发不收，队列会装满溢出——默认深度很小，这是真实存在的坑。**
 
@@ -1451,9 +1422,7 @@ set_response_queue_depth(32);   // [1] 把队列调大
 
 **注意**：调深度是容量策略，**不是替代消费逻辑**——根本不 get_response 的话调多大都会满。深度设 -1（无限制）更糟：掩盖泄漏 + 内存膨胀。
 
-> 记忆：**driver 每返回一个 rsp 就占一个队列位，只发不收会溢出——一发一收（get_response）或收发并行（fork）；调深度只是扩容，根本解法是"消费 response"。**
-
-### 6.7.3 response handler（🟢 进阶）
+### 6.7.3 response handler
 
 **核心：get_response 是"主动等"（阻塞）；response handler 是"被动收"——rsp 一到自动回调你写的处理函数，不用在 body 里显式 get_response。**
 
@@ -1500,9 +1469,7 @@ endclass
 3. **开启后不要再 get_response**——否则同一个 rsp 被消费两次（handler 收一次 + get_response 又收一次）；
 4. **数量和生命周期还是要管**——handler 不解决"rsp 太多"，队列深度/消费逻辑照旧。
 
-> 记忆：**get_response 主动等、handler 被动收（use_response_handler 开启 + response_handler 自动回调）；handler 是 function 不能阻塞，重处理搬 FIFO，开了 handler 就别再 get_response 重复消费。**
-
-### 6.7.4 rsp 与 req 类型不同（🟡 中）
+### 6.7.4 rsp 与 req 类型不同
 
 **核心：之前 req 和 rsp 用同一个类；如果请求和返回字段差异很大，可以让 sequence 模板支持两种类型——`uvm_sequence #(REQ, RSP)`。**
 
@@ -1541,9 +1508,8 @@ class bus_driver extends uvm_driver #(
 2. **读写共用 request**——读写的 req 一样，但 response 只含状态和读数据；
 3. **想从类型层面禁止误用**——rsp 是独立类型，拿 req 的字段当结果会编译报错（类型安全）。
 
-> 记忆：**rsp 类型独立 = `uvm_sequence #(REQ, RSP)` 两个参数，sequencer/driver 三件套对齐；适合请求返回字段差异大、读写共用 req 的场景——类型安全，防误用请求字段。**
-## 6.8 sequence library（🟢 进阶）
-### 6.8.1 随机选择 sequence（🟢 进阶）
+## 6.8 sequence library
+### 6.8.1 随机选择 sequence
 sequence library 是多个 sequence 类型的集合，可随机挑选并执行。
 定义 library：
 ```systemverilog
@@ -1584,7 +1550,7 @@ lib.start(env.i_agt.sqr);
 
 ---
 
-### 6.8.2 控制选择算法（🟢 进阶）
+### 6.8.2 控制选择算法
 常见选择模式：
 
 | 模式 | 含义 |
@@ -1605,7 +1571,7 @@ RAND 与 RANDC：
 
 ---
 
-### 6.8.3 控制执行次数（🟢 进阶）
+### 6.8.3 控制执行次数
 library 的执行次数可配置为一个随机范围：
 ```systemverilog
 lib.min_random_count = 20;
@@ -1620,7 +1586,7 @@ lib.max_random_count = 50;
 
 ---
 
-### 6.8.4 使用 `sequence_library_cfg`（🟢 进阶）
+### 6.8.4 使用 `sequence_library_cfg`
 可将选择模式和次数集中放入配置对象。
 概念示例：
 ```systemverilog
@@ -1641,8 +1607,8 @@ lib.start(env.i_agt.sqr);
 
 ---
 
-## 6.9 sequence 握手全过程（🔴 高）
-### 6.9.1 请求路径（🔴 高）
+## 6.9 sequence 握手全过程
+### 6.9.1 请求路径
 
 **核心：sequence 发一笔请求的完整握手——start_item 申请授权 → 授权后随机化 → finish_item 提交 → sequencer 派发给 driver → driver 驱动 → item_done 完成 → finish_item 返回。**
 
@@ -1695,8 +1661,7 @@ sequenceDiagram
 7. **item_done**：driver 通知完成；
 8. **finish_item 返回**：sequence 继续下一笔（start_item 再次申请）。
 
-> 记忆：**start_item 取号（申请授权）→ 授权后随机化 → finish_item 交货（提交）→ driver get_next_item 取货 → 驱动 → item_done 交差 → finish_item 返回——一个循环就是一笔请求的完整生命周期。**
-### 6.9.2 `get_next_item` 与 `get`（🔴 高）
+### 6.9.2 `get_next_item` 与 `get`
 
 **核心：driver 取请求有两种方式——`get_next_item` 要手动 `item_done`，`get` 自动完成握手。项目里统一用一种，不能混用。**
 
@@ -1725,7 +1690,7 @@ drive(req);               // [2] 驱动
 
 **⚠️ 关键**：**项目里统一用一种协议**——不能混用两套配对关系（如 get_next_item 取了却不 item_done，或 get 之后又调 item_done），配对关系乱了 sequence 就会卡住。
 
-### 6.9.3 sequence 调试清单（🟡 中）
+### 6.9.3 sequence 调试清单
 
 **核心：sequence 出问题，本质都是"握手链路某一环断了"——按现象查对应环节。**
 
@@ -1738,7 +1703,7 @@ drive(req);               // [2] 驱动
 5. 确认 driver 进入了 `get_next_item()`；
 6. 检查其他 sequence 是否持有 lock/grab（被独占卡住）；
 7. 检查当前 sequence 的 `is_relevant()`；
-8. 检查前一个 item 是否漏掉 `item_done()`（**经典：上一个没交差，下一个卡住**）；
+8. 检查前一个请求是否漏掉了 `item_done()`。如果没有完成握手，后续请求可能一直阻塞。
 9. 检查 phase 是否已结束并杀死 sequence；
 10. 打开 sequencer arbitration trace（看谁在抢）。
 
@@ -1757,17 +1722,3 @@ drive(req);               // [2] 驱动
 - 检查多个并发 sequence 是否都在消费自己的 response；
 - 检查 response handler 和 `get_response()` 是否混用（双重消费）；
 - 检查 RSP 模板类型是否一致。
-## 本章总结（6.1-6.8）
-
-### 学习重点排序
-
-| 优先级 | 必须掌握 |
-|--------|----------|
-| 🔴 高 | sequence、sequencer、driver 的职责边界 |
-| 🔴 高 | `start_item/finish_item` 与 `get_next_item/item_done` 握手 |
-| 🔴 高 | `uvm_do`、`uvm_do_with`、`uvm_do_on` 的含义 |
-| 🔴 高 | virtual sequence 协调多个 sequencer 的结构 |
-| 🔴 高 | response 的路由、消费和队列问题 |
-| 🟡 中 | 多 sequence 仲裁、优先级、lock 与 grab |
-| 🟡 中 | 嵌套 sequence、sequence 随机化与继承 |
-| 🟢 进阶 | `is_relevant/wait_for_relevant` 与 sequence library |

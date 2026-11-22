@@ -1,13 +1,11 @@
 # UVM实战 第 7 章学习笔记：UVM 中的寄存器模型
-> **核心结论**：UVM 寄存器模型用 `uvm_reg_block -> uvm_reg -> uvm_reg_field` 描述 DUT 寄存器结构，用 `uvm_reg_map + adapter + sequencer` 完成前门访问，用 HDL path 完成后门访问，并通过 desired/mirrored value 模拟和检查 DUT 状态。
->
-> **记忆主线**：先建模字段与寄存器 -> 加入 block 和 map -> 绑定 bus sequencer 与 adapter -> 选择 frontdoor/backdoor -> 用 predict/mirror 保持模型与 DUT 一致。
+
+寄存器模型记录寄存器地址、字段位置和访问属性。前门访问通过总线读写 DUT，后门访问可以按 HDL 路径访问设计内部的寄存器。模型另外保存期望值和镜像值，供更新和检查使用。
 
 ---
 
 ## 7.0 本章定位
-寄存器模型也称 RAL，即 Register Abstraction Layer。
-它把“寄存器叫什么、位于哪里、字段怎么访问”从具体总线协议中抽象出来。
+RAL 是 Register Abstraction Layer 的缩写。测试用寄存器名和字段名发起操作，adapter 负责转换成具体总线的事务。
 
 | 章节 | 核心问题 |
 |------|----------|
@@ -24,8 +22,7 @@
 2. 自动维护地址、字段、访问属性和复位值。
 3. 支持前门与后门两条访问路径。
 4. 保存镜像状态并提供自动检查 sequence。
-### 零基础阅读提示
-先把寄存器模型理解成 DUT 寄存器的“验证侧通讯录 + 影子副本”：
+### 寄存器模型的组成
 - `uvm_reg_field` 描述某几位。
 - `uvm_reg` 描述一个完整寄存器。
 - `uvm_reg_block` 把多个寄存器组织起来。
@@ -64,8 +61,8 @@ DUT internal signal
 
 ---
 
-## 7.1 寄存器模型简介（🔴 高）
-### 7.1.1 带寄存器配置总线的 DUT（🔴 高）
+## 7.1 寄存器模型简介
+### 7.1.1 带寄存器配置总线的 DUT
 典型 DUT 同时包含：
 - 数据输入/输出接口。
 - APB、AXI-Lite、I2C 或自定义寄存器配置总线。
@@ -103,7 +100,7 @@ rm.invert.write(status, 16'h1, UVM_FRONTDOOR);
 
 ---
 
-### 7.1.2 需要寄存器模型才能做的事情（🔴 高）
+### 7.1.2 需要寄存器模型才能做的事情
 寄存器模型带来的主要能力：
 
 | 能力 | 说明 |
@@ -117,16 +114,15 @@ rm.invert.write(status, 16'h1, UVM_FRONTDOOR);
 | 状态镜像 | 保存 desired/mirrored value |
 | 批量操作 | block 级 reset、mirror、update |
 | 自动测试 | 复位值、位翻转、前后门一致性检查 |
-不使用寄存器模型时，参考模型如果要读取控制寄存器，常见坏味道包括：
+参考模型直接操作总线寄存器时，代码里容易出现以下依赖。
 - 依赖全局变量。
 - 保存 bus sequencer 句柄并自行启动读 sequence。
 - 在多个组件中重复地址常量。
 - 参考模型与具体总线 transaction 强耦合。
-寄存器模型本质上重新定义了验证平台访问寄存器的接口。
 
 ---
 
-### 7.1.3 寄存器模型中的基本概念（🔴 高）
+### 7.1.3 寄存器模型中的基本概念
 **`uvm_reg_field`**
 最小建模单位，表示一个寄存器中的字段。
 例如状态寄存器：
@@ -172,8 +168,8 @@ bit 15:4 reserved
 
 ---
 
-## 7.2 简单的寄存器模型（🔴 高）
-### 7.2.1 只有一个寄存器的寄存器模型（🔴 高）
+## 7.2 简单的寄存器模型
+### 7.2.1 只有一个寄存器的寄存器模型
 **定义寄存器类**
 ```systemverilog
 class reg_invert extends uvm_reg;
@@ -287,7 +283,7 @@ create_map("default_map", base_addr, n_bytes, endian, byte_addressing);
 
 ---
 
-### 7.2.2 将寄存器模型集成到验证平台中（🔴 高）
+### 7.2.2 将寄存器模型集成到验证平台中
 **创建并锁定模型**
 ```systemverilog
 class base_test extends uvm_test;
@@ -395,7 +391,7 @@ endfunction
 
 ---
 
-### 7.2.3 在验证平台中使用寄存器模型（🔴 高）
+### 7.2.3 在验证平台中使用寄存器模型
 **读取寄存器**
 ```systemverilog
 uvm_status_e   status;
@@ -449,8 +445,8 @@ endclass
 
 ---
 
-## 7.3 后门访问与前门访问（🔴 高）
-### 7.3.1 UVM 中前门访问的实现（🔴 高）
+## 7.3 后门访问与前门访问
+### 7.3.1 UVM 中前门访问的实现
 前门访问通过 DUT 对外暴露的真实寄存器总线完成。
 ```text
 reg.read/write
@@ -506,7 +502,7 @@ seq_item_port.item_done(rsp);
 
 ---
 
-### 7.3.2 后门访问操作的定义（🔴 高）
+### 7.3.2 后门访问操作的定义
 后门访问绕过寄存器总线，直接读写 DUT 内部变量。
 ```text
 reg.peek/poke 或 read/write(UVM_BACKDOOR)
@@ -530,7 +526,7 @@ reg.peek/poke 或 read/write(UVM_BACKDOOR)
 
 ---
 
-### 7.3.3 使用 interface 进行后门访问操作（🟡 中）
+### 7.3.3 使用 interface 进行后门访问操作
 一种广义后门方案是在 interface 中直接层次引用 DUT：
 ```systemverilog
 interface dut_backdoor_if;
@@ -561,7 +557,7 @@ if (!uvm_config_db #(virtual dut_backdoor_if)::get(
 
 ---
 
-### 7.3.4 UVM 中后门访问操作的实现：DPI + VPI（🟡 中）
+### 7.3.4 UVM 中后门访问操作的实现：DPI + VPI
 UVM 使用 DPI 把 SystemVerilog 调用连接到 C/C++，再使用 VPI 访问 HDL 对象。
 概念链路：
 ```text
@@ -603,7 +599,7 @@ uvm_hdl_read("top_tb.dut.counter", value);
 
 ---
 
-### 7.3.5 UVM 中后门访问操作接口（🟡 中）
+### 7.3.5 UVM 中后门访问操作接口
 **为寄存器设置 HDL path**
 block 设置根路径：
 ```systemverilog
@@ -651,8 +647,8 @@ rm.counter.poke(status, 32'h1fffd);
 
 ---
 
-## 7.4 复杂的寄存器模型（🟡 中）
-### 7.4.1 层次化的寄存器模型（🟡 中）
+## 7.4 复杂的寄存器模型
+### 7.4.1 层次化的寄存器模型
 大型 DUT 通常按子模块划分地址空间：
 ```text
 global block : 0x0000 - 0x0fff
@@ -703,7 +699,7 @@ endclass
 
 ---
 
-### 7.4.2 `reg_file` 的作用（🟡 中）
+### 7.4.2 `reg_file` 的作用
 `uvm_reg_file` 提供逻辑层次分组。
 它适合：
 - 多通道具有相同寄存器集合。
@@ -730,7 +726,7 @@ ctrl.configure(
 
 ---
 
-### 7.4.3 多个域的寄存器（🟡 中）
+### 7.4.3 多个域的寄存器
 一个寄存器通常包含多个 field：
 ```systemverilog
 class status_reg extends uvm_reg;
@@ -767,7 +763,7 @@ rm.status.update(status, UVM_FRONTDOOR);
 
 ---
 
-### 7.4.4 多个地址的寄存器（🟡 中）
+### 7.4.4 多个地址的寄存器
 同一个逻辑寄存器可能通过多个地址访问。
 例如：
 - 普通读写地址。
@@ -790,7 +786,7 @@ map 会根据总线宽度、端序和地址步进拆分访问。
 
 ---
 
-### 7.4.5 加入存储器（🟢 低）
+### 7.4.5 加入存储器
 `uvm_mem` 用于描述 memory：
 ```systemverilog
 class buffer_block extends uvm_reg_block;
@@ -827,8 +823,8 @@ packet_mem.peek(status, 10, value);
 
 ---
 
-## 7.5 寄存器模型对 DUT 的模拟（🟡 中）
-### 7.5.1 期望值与镜像值（🟡 中）
+## 7.5 寄存器模型对 DUT 的模拟
+### 7.5.1 期望值与镜像值
 每个寄存器模型对象要区分三种值：
 
 | 值 | 所在位置 | 含义 |
@@ -869,7 +865,7 @@ rm.invert.peek(status, actual);         // 后门读取 DUT actual
 
 ---
 
-### 7.5.2 常用操作对期望值和镜像值的影响（🟡 中）
+### 7.5.2 常用操作对期望值和镜像值的影响
 | 操作 | 是否访问 DUT | desired | mirrored |
 |------|--------------|---------|----------|
 | `get()` | 否 | 返回 | 不变 |
@@ -915,8 +911,8 @@ volatile 字段可能由硬件自行改变。
 
 ---
 
-## 7.6 寄存器模型中一些内建的 sequence（🟡 中）
-### 7.6.1 检查后门访问中 HDL 路径的 sequence（🟡 中）
+## 7.6 寄存器模型中一些内建的 sequence
+### 7.6.1 检查后门访问中 HDL 路径的 sequence
 `uvm_reg_mem_hdl_paths_seq` 检查已配置 HDL path 是否可访问。
 ```systemverilog
 uvm_reg_mem_hdl_paths_seq path_seq;
@@ -934,7 +930,7 @@ path_seq.start(null);
 
 ---
 
-### 7.6.2 检查默认值的 sequence（🟡 中）
+### 7.6.2 检查默认值的 sequence
 `uvm_reg_hw_reset_seq` 检查 DUT 复位值与模型声明是否一致。
 ```systemverilog
 uvm_reg_hw_reset_seq reset_seq;
@@ -975,7 +971,7 @@ uvm_resource_db #(bit)::set(
 
 ---
 
-### 7.6.3 检查读写功能的 sequence（🟡 中）
+### 7.6.3 检查读写功能的 sequence
 **`uvm_reg_access_seq`**
 检查寄存器前门和后门访问的一致性。
 概念流程：
@@ -1022,8 +1018,8 @@ mem_seq.start(null);
 
 ---
 
-## 7.7 寄存器模型的高级用法（🟢 进阶）
-### 7.7.1 使用 `reg_predictor`（🟢 进阶）
+## 7.7 寄存器模型的高级用法
+### 7.7.1 使用 `reg_predictor`
 **auto predict**
 前门 API 自己发起访问并根据 driver 返回结果更新 mirror：
 ```systemverilog
@@ -1086,7 +1082,7 @@ predictor 的优点：
 
 ---
 
-### 7.7.2 `UVM_PREDICT_DIRECT` 与 mirror 操作（🟢 进阶）
+### 7.7.2 `UVM_PREDICT_DIRECT` 与 mirror 操作
 `predict()` 只修改模型，不访问 DUT。
 ```systemverilog
 bit ok;
@@ -1125,7 +1121,7 @@ p_rm.counter.mirror(
     UVM_FRONTDOOR
 );
 ```
-这形成完整闭环：
+这个例子的比较过程如下。
 ```text
 reference model predicts expected counter
                     |
@@ -1133,13 +1129,11 @@ reference model predicts expected counter
                     |
 mirror reads DUT actual counter and checks
 ```
-`mirror(UVM_NO_CHECK)` 用来同步。
-`mirror(UVM_CHECK)` 用来验证。
-不要把两者目的混在一起。
+`mirror(UVM_CHECK)` 会将读回值与镜像中的期望值相比较，再按寄存器的预测规则更新镜像。`mirror(UVM_NO_CHECK)` 跳过这次比较。
 
 ---
 
-### 7.7.3 寄存器模型的随机化与 `update`（🟢 进阶）
+### 7.7.3 寄存器模型的随机化与 `update`
 字段、寄存器和 block 可形成随机化层次：
 ```systemverilog
 class reg_invert extends uvm_reg;
@@ -1155,7 +1149,7 @@ assert(rm.randomize());
 assert(rm.invert.randomize());
 assert(rm.invert.reg_data.randomize());
 ```
-字段真正参与随机化需要同时满足：
+要让字段参与上面的随机化，需要满足以下条件。
 - 字段句柄声明为 `rand`。
 - `configure()` 的 `is_rand` 参数为 1。
 - access 类型支持有意义的写操作。
@@ -1180,7 +1174,7 @@ rm.update(status, UVM_FRONTDOOR);
 
 ---
 
-### 7.7.4 扩展位宽（🟢 进阶）
+### 7.7.4 扩展位宽
 默认数据宽度由宏控制：
 ```systemverilog
 `ifndef UVM_REG_DATA_WIDTH
@@ -1209,8 +1203,8 @@ byte enable 宽度通常由数据宽度推导：
 
 ---
 
-## 7.8 寄存器模型的其他常用函数（🟡 中）
-### 7.8.1 `get_root_blocks`（🟡 中）
+## 7.8 寄存器模型的其他常用函数
+### 7.8.1 `get_root_blocks`
 可查找验证平台中所有 root register block：
 ```systemverilog
 uvm_reg_block blocks[$];
@@ -1231,7 +1225,7 @@ root block 是没有父 `uvm_reg_block` 的最顶层 block。
 
 ---
 
-### 7.8.2 `get_reg_by_offset`（🟡 中）
+### 7.8.2 `get_reg_by_offset`
 可通过地址从 map 查找寄存器：
 ```systemverilog
 uvm_reg target;
@@ -1265,8 +1259,8 @@ foreach (addresses[i])
 
 ---
 
-## 7.9 实际工程中的建模流程（🟢 低）
-### 7.9.1 从寄存器规格到 RAL（🟢 低）
+## 7.9 实际工程中的建模流程
+### 7.9.1 从寄存器规格到 RAL
 建议流程：
 1. 统一寄存器规格源，如 IP-XACT、SystemRDL、CSV 或专用表格。
 2. 自动生成 `uvm_reg`、block、map 和 HDL path 骨架。
@@ -1284,7 +1278,7 @@ foreach (addresses[i])
 - 教学和原型。
 - 自定义特殊寄存器行为。
 - 对自动生成模型进行扩展。
-### 7.9.2 模型结构自检（🟢 低）
+### 7.9.2 模型结构自检
 可打印模型：
 ```systemverilog
 rm.print();
@@ -1298,7 +1292,7 @@ rm.print();
 - access 属性。
 - reset value 与 has_reset。
 - HDL path。
-### 7.9.3 前门访问故障定位（🟢 低）
+### 7.9.3 前门访问故障定位
 当 `reg.read/write` 不工作时：
 1. 检查 `status` 是否为 `UVM_IS_OK`。
 2. 检查 `lock_model()` 是否已经调用。
@@ -1310,7 +1304,7 @@ rm.print();
 8. 检查 monitor 看到的物理地址。
 9. 检查 `bus2reg()` 是否设置 data/status。
 10. 检查 byte addressing 与 endian。
-### 7.9.4 后门访问故障定位（🟢 低）
+### 7.9.4 后门访问故障定位
 当 `peek/poke` 报错时：
 1. 打印寄存器完整 HDL path。
 2. 检查 root block `configure()` 的路径。
@@ -1322,7 +1316,7 @@ rm.print();
 8. 先运行 `uvm_reg_mem_hdl_paths_seq`。
 9. 对比直接 `uvm_hdl_read()` 的结果。
 10. 门级仿真重新核对网表层次。
-### 7.9.5 镜像不一致故障定位（🟢 低）
+### 7.9.5 镜像不一致故障定位
 当 mirror check 失败时：
 - 检查字段 access 是否与 RTL 一致。
 - 检查 volatile 属性。
@@ -1334,20 +1328,3 @@ rm.print();
 - 检查复位时是否调用 `rm.reset()`。
 - 检查后门 `poke()` 后模型是否按预期更新。
 - 检查实际采样时刻是否稳定。
-
----
-
-## 本章总结（7.1-7.8）
-
-### 学习重点排序
-
-| 优先级 | 必须掌握 |
-|--------|----------|
-| 🔴 高 | `uvm_reg_block -> uvm_reg -> uvm_reg_field` 建模层次 |
-| 🔴 高 | `uvm_reg_map + adapter + bus sequencer` 前门链路 |
-| 🔴 高 | `read/write` 与 `peek/poke` 的区别 |
-| 🔴 高 | desired、mirrored、actual 三种值 |
-| 🔴 高 | `set/update` 与 `predict/mirror` 的配合 |
-| 🟡 中 | HDL path、层次 block、多 field 与 memory |
-| 🟡 中 | auto predict 与 `uvm_reg_predictor` |
-| 🟢 进阶 | 内建 sequence、随机寄存器配置和宽度扩展 |

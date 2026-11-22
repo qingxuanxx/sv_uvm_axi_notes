@@ -1,6 +1,6 @@
 # SV、UVM、AMBA 总线学习笔记
 
-![最后更新](https://img.shields.io/badge/%E6%9C%80%E5%90%8E%E6%9B%B4%E6%96%B0-2026--11--20-blue)
+![最后更新](https://img.shields.io/badge/%E6%9C%80%E5%90%8E%E6%9B%B4%E6%96%B0-2026--11--22-blue)
 ![License](https://img.shields.io/badge/License-MIT-purple)
 ![GitHub Stars](https://img.shields.io/github/stars/qingxuanxx/sv_uvm_axi_notes?style=flat&color=yellow)
 ![面经](https://img.shields.io/badge/%E9%9D%A2%E7%BB%8F-100%E7%AF%87-orange)
@@ -19,7 +19,9 @@
 - ✍️ **笔试真题**：各公司笔试记录与高频考点归纳（待完成）
 - 🖥️ **手撕代码**：面经手撕题目整理（待完成）
 
-面经按 `公司-岗位或技术方向-招聘批次-轮次或文档类型` 命名。同组有多篇时，在末尾加两位序号，例如 [芯动科技-PCIe验证-校招-一面-01](./面经/验证/芯动科技-PCIe验证-校招-一面-01.md)。
+> **面经更新近况**：27 届秋招差不多结束了，最近小红书也没有什么新增面经。预计 2027 年 3–4 月，等大家开始找实习、参加春招，我会陆续整理一批新面经放上来。
+
+> 仓库里绝大多数面经整理自小红书，收录的帖子实在太多，没能逐一联系原作者征求同意。如果你是原帖作者，希望撤下对应的面经，可以[提交 Issue](https://github.com/qingxuanxx/sv_uvm_axi_notes/issues/new)联系我，附上仓库里的面经链接，我会尽快删除。
 
 ## 目录
 
@@ -90,4 +92,4 @@ sv_uvm_axi_notes/
 - ARM AMBA 3 APB Protocol（IHI 0024）：https://developer.arm.com/documentation/ihi0024
 - ARM AMBA AHB Protocol Specification（IHI 0033）：https://developer.arm.com/documentation/ihi0033
 
-> 最后更新：2026-11-20
+> 最后更新：2026-11-22

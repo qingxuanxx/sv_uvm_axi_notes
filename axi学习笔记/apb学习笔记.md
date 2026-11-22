@@ -1,8 +1,6 @@
-# AMBA APB 学习笔记：单通道两阶段，低速外设专用
+# AMBA APB 学习笔记：外设寄存器的两阶段访问
 
-> 适合读者：已经学过 AXI-Lite / AXI4，准备补全 AMBA 家族认知；希望用最便宜的协议理解"外设寄存器访问"。
->
-> 学习目标：看懂 APB 波形；理解 SETUP/ACCESS 两阶段与完成条件；理解 PREADY 等待、PSTRB 字节使能与 PSLVERR 错误语义。
+一次 APB 寄存器访问依次经过 SETUP 和 ACCESS。支持 `PREADY` 的外设可以延长 ACCESS，让主设备等待读数据或写操作完成。
 
 ---
 
@@ -10,26 +8,22 @@
 
 本文主要依据 Arm《AMBA APB Protocol Specification》ARM IHI 0024E。该文档定义的是 APB5，并向下覆盖 APB2、APB3、APB4 的核心行为。
 
-> **阅读主线：** 先记住 `SETUP -> ACCESS`，再看 `PREADY` 如何延长 ACCESS，最后学习 `PSTRB` 和 `PSLVERR`。
-
-> **术语说明：本文统一使用传统命名 Master / Slave**（APB 新版规范称 Master / Slave，含义相同：Master 发起访问、常见实现是 AXI-to-APB bridge，Slave 是被访问的外设如 UART、GPIO、Timer；本文统一用 Master/Slave）。
+在常见的 SoC 中，AXI-to-APB 桥作为 Master 发起访问，UART、GPIO 或定时器作为 Slave 响应。
 
 版本演进简记：
 
 ```text
 APB2: 基础（PSEL/PENABLE，无 PREADY）
-APB3: + PREADY（等待状态）+ PSLVERR（错误响应）   ← 最重要
+APB3: + PREADY（等待状态）、PSLVERR（错误响应）
 APB4: + PSTRB（字节使能）+ PPROT（保护属性）
-APB5: + PWAKEUP（唤醒）、用户信号、RME（考得少）
+APB5: + PWAKEUP（唤醒）、用户信号、RME 等扩展
 ```
-
-> 面试只需记住：**"APB3 加 PREADY/PSLVERR，APB4 加 PSTRB/PPROT"** —— 这一句够了。
 
 ---
 
 ## 1. APB 是什么
 
-**一句话定位**：APB 是"一条单车道小马路"——地址和数据共用一次传输，专给低速外设（GPIO、UART、Timer）用，便宜、简单、够用。
+APB 常用于访问 UART、GPIO、定时器等外设的控制与状态寄存器。
 
 常见系统结构：
 
@@ -59,22 +53,20 @@ APB 的特点：
 - 一次传输至少需要两个时钟周期。
 - 地址和数据不分成独立握手通道。
 - 适合控制寄存器，不适合高带宽连续数据搬运。
-- 通常不是 CPU 直接产生 APB 时序，而是桥接器将 AXI/AHB 请求转换为 APB。
+- 在使用桥接器的系统中，由桥接器把 AXI 或 AHB 请求转换为 APB 时序。
 
-### 1.1 与 AXI-Lite 的关键区别（先记住这张表）
+### 1.1 与 AXI-Lite 的区别
 
 | 对比项 | AXI-Lite | APB |
 |---|---|---|
-| 通道 | 5 条独立单向通道 | **1 条**（地址数据共用） |
+| 通道 | 5 个独立通道 | 一条访问路径，地址和数据随同一笔操作传递 |
 | 握手 | 每通道 `VALID/READY` | `PSEL/PENABLE/PREADY` |
-| 最少周期 | 可 1 拍 | **至少 2 拍** |
+| 最少周期 | 单个通道可在 1 拍完成握手 | 一笔访问至少 2 拍 |
 | 读写并发 | 可并发 | **不能并发** |
-| 地址和数据 | 可任意先后 | **同拍稳定（绑定）** |
+| 写地址和写数据 | AW 和 W 分别握手，先后均可 | 地址与写数据在同一笔访问中保持稳定 |
 | 字节使能 | `WSTRB` | `PSTRB` |
-| 错误响应 | `BRESP/RRESP`（4 种编码） | `PSLVERR`（1 位） |
+| 错误响应 | `BRESP`、`RRESP` | `PSLVERR` |
 | 响应粒度 | 写整笔 1 个 B；读每拍 RRESP | 每笔 1 个 |
-
-> 记忆：**AXI-Lite 是"五车道高速路"，APB 是"单车道小马路"——便宜但一次只能走一辆车。**
 
 ### 1.2 为什么最少两个周期
 
@@ -156,7 +148,7 @@ stateDiagram-v2
 | SETUP | 1 | 0 | 给出本次传输信息 |
 | ACCESS | 1 | 1 | Slave 执行并给出完成状态 |
 
-### 3.1 最重要的完成条件
+### 3.1 传输完成条件
 
 **完成条件是 `PSEL && PENABLE && PREADY`**。只有在时钟上升沿同时采到三个信号为 1，当前传输才完成。
 
@@ -220,7 +212,7 @@ PWDATA      D1         D1         D1         D1         next
 
 这条规则是 APB 协议的核心检查点。
 
-> 记忆：**PREADY=0 = 外设还没准备好，你举着的东西（地址/数据）不能换** —— 和 AXI"阻塞期间 payload 稳定"同一个道理。
+在 ACCESS 期间，若 `PREADY=0`，Master 要保持地址、控制和写数据，等外设完成访问。
 
 ### 4.3 零等待读
 
@@ -256,7 +248,7 @@ PENABLE    1       0             1
 
 不能连续两个完成周期都保持 `PENABLE=1`，否则没有新传输的 SETUP 阶段。
 
-> 记忆：**PSEL 是"选谁"（可以一直选着），PENABLE 是"发令枪"（每笔都要重新上膛）。**
+连续访问同一外设时，`PSEL` 可以保持为高。下一笔传输仍从 SETUP 开始，此时 `PENABLE` 为低。
 
 ### 5.2 切换到另一个 Slave
 
@@ -367,7 +359,7 @@ APB write PSLVERR -> AXI BRESP
 
 一个外设可以根据 `PPROT` 实现权限检查，例如只有 privileged access 才能写看门狗控制寄存器。
 
-> 记忆：**PPROT = APB 版的 AxPROT，3 位：特权/安全/指令。简单外设通常忽略，安全系统会据此拒绝访问。**
+`PPROT` 和 AXI 的 `AxPROT` 都用三个位描述访问属性，可供外设或访问控制逻辑检查。
 
 ---
 
@@ -418,42 +410,6 @@ endinterface
 ```
 
 这里列出 APB 协议的全部核心信号。
-
----
-
-## 11. 总结
-
-### 11.1 学习重点排序
-
-| 优先级 | 学习内容 |
-|---|---|
-| 🔴 高 | `SETUP -> ACCESS`、完成条件、等待期间保持稳定 |
-| 🟡 中 | 连续传输、`PSTRB`、`PSLVERR`、地址译码 |
-| 🟢 进阶 | `PPROT`、APB5 扩展、interface 和实现优化 |
-
-### 11.2 易错点
-
-| 易错理解 | 正确理解 |
-|---|---|
-| `PREADY=1` 就完成 | 必须同时满足 `PSEL && PENABLE && PREADY` |
-| `PENABLE` 可以一直为 1 | 每笔传输前都需要一个 SETUP 周期 |
-| 等待时可以修改地址 | `PREADY=0` 时请求字段必须保持稳定 |
-| 写副作用在进入 ACCESS 时发生 | 应绑定到真正的完成沿 |
-| 连续访问必须拉低 `PSEL` | 同一外设可保持 `PSEL=1`，但 `PENABLE` 必须回到 0 |
-| `PSLVERR=1` 表示操作已回滚 | 规范不保证没有副作用 |
-
-### 11.3 最重要的 10 条规则
-
-1. APB 是同步、非流水协议，每笔至少两拍。
-2. SETUP 时 `PSEL=1, PENABLE=0`。
-3. ACCESS 时 `PSEL=1, PENABLE=1`。
-4. 只有 `PSEL && PENABLE && PREADY` 才完成。
-5. `PREADY=0` 时 Master 必须保持传输信息稳定。
-6. 每笔新传输前 `PENABLE` 都必须回到 `0`。
-7. 读数据和错误响应在完成沿采样。
-8. `PSTRB` 每一位控制一个写数据字节，读时必须为 0。
-9. 外设副作用应只绑定到完成事件。
-10. `PSLVERR` 不保证操作没有产生副作用。
 
 ---
 

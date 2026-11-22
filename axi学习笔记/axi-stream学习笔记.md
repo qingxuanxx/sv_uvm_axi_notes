@@ -1,8 +1,6 @@
 # AMBA AXI4-Stream 学习笔记：从 Beat（拍）握手到 Packet（数据包）
 
-> 适合读者：已经理解 VALID/READY，希望学习视频流、网络包、DSP 数据链路或 FPGA 中的流接口。
->
-> 学习目标：理解 AXI4-Stream 与 memory-mapped AXI 的区别；正确处理反压（backpressure）、packet 边界和伴随信息（sideband）；掌握握手、TKEEP/TSTRB 与 TLAST 语义。
+AXI4-Stream 用 `TVALID` 和 `TREADY` 握手传送数据拍。接收端可以通过 `TREADY` 施加反压。使用包边界时，`TLAST` 标记包的最后一拍。
 
 ---
 
@@ -23,7 +21,6 @@ AXI4-Stream 常简称：
 | Transmitter | Master / Source | 驱动 `TVALID` 和 payload |
 | Receiver | Slave / Sink | 驱动 `TREADY` |
 
-> **阅读主线：** 先用 `TVALID/TREADY` 判断一个 beat 是否真的传输，再用 `TKEEP/TSTRB` 判断哪些字节有效，最后用 `TLAST` 拼成 packet。
 ---
 
 ## 1. AXI4-Stream 是什么
@@ -48,7 +45,7 @@ Transmitter  <- TREADY ------------  Receiver
 
 ### 1.1 它没有地址
 
-AXI4-Stream 不告诉 Receiver “把数据写到哪个内存地址”。它只描述：
+接口信号描述每一拍的数据、有效字节和包边界。看波形时可以依次检查下面几项。
 
 ```text
 现在有一个 beat，可否接收？
@@ -57,7 +54,7 @@ AXI4-Stream 不告诉 Receiver “把数据写到哪个内存地址”。它只�
 它属于哪个 stream、要去哪个 destination？
 ```
 
-### 1.2 单向不等于不能双向通信
+### 1.2 用两套接口实现双向通信
 
 一个 AXI4-Stream interface 只负责一个方向。若系统需要双向数据，使用两套独立接口：
 
@@ -130,13 +127,13 @@ TREADY 先，TVALID 后
 TVALID 与 TREADY 同拍
 ```
 
-### 3.2 Transmitter 的铁律
+### 3.2 发送端对 TVALID 和数据的保持要求
 
 Transmitter 不允许等待 `TREADY=1` 才拉高 `TVALID`。
 
 一旦 `TVALID=1`：
 
-- 必须保持到真正握手。
+- `TVALID` 应保持为 1，直到本拍完成握手。
 - `TDATA` 和所有 sideband 必须保持稳定。
 - 不能因为 Receiver 暂时不 ready 就丢弃或换成下一个 beat。
 
@@ -176,7 +173,7 @@ TVALID      1      1      1      1
 TREADY      0      0      0      1
 ```
 
-Cycle 1-3 都没有传输。Cycle 4 才真正接收。
+前 3 拍 `TREADY` 为 0。第 4 拍的上升沿同时采到 `TVALID=1` 和 `TREADY=1`，接收端在这一拍接收数据。
 
 因此 Cycle 1-4 之间必须保持：
 
@@ -483,42 +480,6 @@ endinterface
 ```
 
 若某些 sideband 不存在，最好通过参数和 generate 明确接口配置，而不是让无意义信号处于 X。
-
----
-
-## 11. 总结
-
-### 11.1 学习重点排序
-
-| 优先级 | 学习内容 |
-|---|---|
-| 🔴 高 | `TVALID/TREADY`、阻塞稳定性、`TKEEP/TSTRB`、`TLAST` |
-| 🟡 中 | packet、`TID/TDEST`、多 stream 顺序、宽度转换 |
-| 🟢 进阶 | `TUSER`、interface 和实现优化 |
-
-### 11.2 易错点
-
-| 易错理解 | 正确理解 |
-|---|---|
-| `TVALID=1` 就传了一拍 | 必须同时有 `TREADY=1` |
-| 反压期间可以换 `TDATA` | 当前 beat 的全部 payload 必须保持 |
-| `TLAST=1` 就结束 packet | TLAST 所在 beat 握手后才结束 |
-| `TKEEP=0` 的 beat 都能丢 | 若同时有 `TLAST=1`，仍可能携带边界语义 |
-| `TID` 等于 AXI transaction ID | `TID` 表示 stream 身份 |
-| 多 stream 只需一个 packet buffer | 应按 `{TID,TDEST}` 分别保存上下文 |
-
-### 11.3 最重要的 10 条规则
-
-1. AXI4-Stream 无地址，一套接口只传一个方向。
-2. Transfer 只在 `TVALID && TREADY` 上升沿发生。
-3. Transmitter 不得等待 TREADY 才拉 TVALID。
-4. TVALID 被阻塞时必须保持有效和全部 payload 稳定。
-5. 满带宽时 TVALID 可以连续为 1，每拍一个 beat。
-6. `TKEEP/TSTRB` 共同区分 data、position 和 null byte。
-7. `TLAST` 只有在所在 beat 握手后才真正结束 packet。
-8. `{TID,TDEST}` 常作为 stream key。
-9. 不同 stream 可交织，同一 stream 必须保序。
-10. 无地址协议，接口只定义单向数据流，双向通信用两套接口。
 
 ---
 

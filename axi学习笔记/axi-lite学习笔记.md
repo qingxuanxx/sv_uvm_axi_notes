@@ -1,8 +1,6 @@
 # AMBA AXI4-Lite 学习笔记：五通道握手与寄存器接口
 
-> 适合读者：零基础或已学过 APB，准备接触 AXI；先用协议子集理解五通道、VALID/READY 和独立握手。
->
-> 学习目标：读懂 AXI4-Lite 波形；理解 AW/W 独立握手和响应依赖；掌握五通道与握手规则。
+一次寄存器写操作用到 AW、W、B 三个通道。写地址和写数据分别握手，两者都被接收后，从设备才能给出写响应。
 
 ---
 
@@ -10,21 +8,15 @@
 
 AXI4-Lite 是 AXI4 的简化子集，主要用于控制寄存器接口。
 
-本文以 Arm IHI 0022H 的 AXI4-Lite 章节为主要依据，并用《Introduction to AMBA AXI4》解释五通道和握手。
+协议定义以 Arm IHI 0022H 的 AXI4-Lite 章节为准，五通道握手的示例参考《Introduction to AMBA AXI4》。对照 IHI 0022L 时，要区分 AXI4-Lite 的接口信号与 AXI5-Lite 的新增信号。
 
-你提供的 IHI 0022L 属于更新的 AMBA 5 规范。阅读时可以参考通用思想，但不要把其中 AXI5-Lite 的新增信号当成 AXI4-Lite 必选信号。
-
-> **阅读主线：** 五个通道各自握手；写地址 AW 和写数据 W 可以任意先后；收到两者后才产生写响应 B。
-
-> **术语说明：本文统一使用传统命名 Master / Slave**（新版规范称 Manager/Subordinate 或 Requester/Completer，含义相同；工程和 IP 文档中仍大量使用 Master/Slave，本文保持一致）。
+Master 发起读写事务，Slave 响应事务。各通道的发送方和接收方见第 2 节。
 
 ---
 
 ## 1. AXI4-Lite 是什么
 
-**一句话定位**：AXI4-Lite 是 CPU 和外设之间的一条"快递通道"——发一个请求、传一个数据、收一个回执，一次办完一件事。
-
-AXI4-Lite 可以理解为：
+AXI4-Lite 适合 CPU 读写外设寄存器。每笔事务传输一个数据拍，保留了 AXI 的独立通道握手。
 
 ```text
 保留 AXI 的五个独立通道和 VALID/READY 握手
@@ -56,8 +48,6 @@ AXI4-Lite 可以理解为：
 | 写地址和写数据 | 同一传输中同时稳定 | 两个独立通道，可任意先后 |
 | 响应 | `PSLVERR` | `BRESP/RRESP` |
 
-AXI4-Lite 语法看似只是信号更多，真正难点是"通道彼此独立"。
-
 ---
 
 ## 2. 五个通道与信号
@@ -79,11 +69,7 @@ flowchart LR
 | AR | Master -> Slave | 读地址和读保护属性 |
 | R | Slave -> Master | 读数据和读响应 |
 
-**记忆技巧**：A=地址、W=写、R=读、B=Backward（反向）。写流程三步走 AW→W→B，读流程两步走 AR→R。
-
 ### 2.1 为什么读没有单独响应通道
-
-**一句话**：数据从哪边回去，响应就跟数据走；反方向回不去就单独开通道。
 
 - **读方向**：读数据本来就是 Slave → Master，`RRESP` 可以与 `RDATA` 一起放在 R 通道顺路带回，不需要额外通道。
 - **写方向**：写数据是 Master → Slave（去程），写结果要反方向返回，所以必须单独开一条 B 通道。
@@ -194,19 +180,17 @@ transfer = VALID && READY;
 | AR | Master | Slave |
 | R | Slave | Master |
 
-**"VALID 一定由 Master 驱动"是错误的。** B、R 通道的 Source 是 Slave。
-
-可以把握手想成打电话：Source 说"东西已经放好了"（VALID），Destination 说"我现在能接"（READY）。只有两句话在同一个上升沿同时成立，传输才发生。
+在 AW、W 和 AR 通道上，Master 驱动 `VALID`。在 B 和 R 通道上，`VALID` 由 Slave 驱动。
 
 ### 4.2 三种合法时序
 
 ```text
-情况 A：VALID 先到，READY 后到（快递员先到门口，等你伸手）
-情况 B：READY 先到，VALID 后到（你提前等着，货一到立刻接走，零等待）
-情况 C：VALID 与 READY 同拍到（双方同时就绪，一拍完成）
+情况 A：VALID 先拉高，随后 READY 拉高
+情况 B：READY 先拉高，随后 VALID 拉高
+情况 C：VALID 与 READY 在同一拍拉高
 ```
 
-只要在某个上升沿两者同时为 `1`，该通道完成一次传输。**"变 1 的那拍就是传成的那拍"，不需要额外再等一拍。**
+每个时钟上升沿，只要 `VALID` 和 `READY` 都为 1，该通道就完成一次传输。两者连续多拍保持为 1 时，每拍都能传输。
 
 三种情况的波形示意：
 
@@ -225,7 +209,7 @@ sequenceDiagram
     Src->>Dst: VALID=1 与 READY=1 同拍
 ```
 
-### 4.3 Source 的铁律
+### 4.3 Source 何时拉高 VALID
 
 Source 不允许等待 READY 后才拉高 VALID。
 
@@ -239,7 +223,7 @@ Source 不允许等待 READY 后才拉高 VALID。
 2. 一旦 VALID 拉高，在握手完成前必须保持 VALID。
 3. 握手完成前 payload 必须稳定。
 
-**违反第 1 条会死锁**：双方互等，谁也等不到谁——这是面试必考场景。
+如果 Source 等待 `READY` 才拉高 `VALID`，遇到等待 `VALID` 的 Destination 时，双方就会一直等待。
 
 ### 4.4 Destination 可以等待 VALID
 
@@ -474,42 +458,6 @@ Slave 的  BVALID / RVALID            -> 必须 = 0
 **为什么？** VALID=1 等于宣称"有货"，复位期间数据是垃圾，对方采样会出错。所以复位时不许"喊有货"。
 
 **READY 没有这个要求**：READY 只是"我准备好了"，不会引发传输，复位时高低无所谓。
-
----
-
-## 10. 总结
-
-### 10.1 学习重点排序
-
-| 优先级 | 学习内容 |
-|---|---|
-| 🔴 高 | 五通道、`VALID/READY`、AW/W 独立、B/R 响应依赖 |
-| 🟡 中 | backpressure、`WSTRB`、顺序和 outstanding |
-| 🟢 进阶 | `AxPROT`、复位规则和实现优化 |
-
-### 10.2 易错点
-
-| 易错理解 | 正确理解 |
-|---|---|
-| `VALID=1` 就发生传输 | 必须在上升沿同时有 `VALID && READY` |
-| Source 可以等 READY 再拉 VALID | 可能与对端互等而死锁 |
-| AW 和 W 必须同时到达 | 两个通道独立，可以任意先后 |
-| 收到 AW 就可以产生 B | 必须先接收完整的 AW 和 W |
-| 阻塞期间可以改变 payload | VALID 保持时 payload 也必须稳定 |
-| `VALID` 一定由 Master 驱动 | B/R 通道的 Source 是 Slave |
-
-### 10.3 最重要的 10 条规则
-
-1. AXI4-Lite 有 AW、W、B、AR、R 五个独立通道。
-2. 任一通道只在 `VALID && READY` 的上升沿传输。
-3. Source 不能等待 READY 才拉 VALID。
-4. VALID 一旦拉高，握手前必须保持。
-5. 阻塞期间 payload 必须稳定。
-6. AW 和 W 可以任意先后或同拍到达。
-7. B 必须在 AW 和 W 都被接收后产生。
-8. R 必须对应已经接收的 AR。
-9. AXI4-Lite 每笔只有 1 beat、无 ID、按序完成。
-10. 复位期间所有 VALID 必须为低。
 
 ---
 

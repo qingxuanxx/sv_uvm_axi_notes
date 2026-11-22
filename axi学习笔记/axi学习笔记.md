@@ -1,26 +1,16 @@
 # AMBA AXI4 学习笔记：Burst、ID、Outstanding 与顺序模型
 
-> 适合读者：已经理解 AXI4-Lite 的五通道和 VALID/READY，准备学习高性能存储映射接口。
->
-> 学习目标：解释 AXI4 读写 burst；计算 beat 地址和有效 byte lane；理解 ID、未完成事务（outstanding）、乱序返回。
+一次 AXI4 burst 用一个地址请求指定一组数据拍。看波形时，可以用 `AxLEN` 判断有几拍，用 `AxSIZE` 和 burst 类型推算地址，再按 ID 跟踪尚未完成的事务。
 
 ---
 
-## 0. 文档定位与版本说明
+## 0. 协议版本与术语
 
-本文讲的是工程中最常见的 AMBA 4 AXI4，而不是把所有 AXI5、ACE 和 CHI 特性混在一起。
+本文讨论 AMBA 4 AXI4。协议定义以 ARM IHI 0022H 的 AXI4 章节为准，握手和 burst 示例可参阅 Arm《Introduction to AMBA AXI4》。IHI 0022 Issue L 用于对照新版术语，其中的 AXI5 专属功能应按对应版本查阅。
 
-资料使用原则：
+文中用 Master 指发起读写事务的一方，Slave 指响应方。新版资料也使用 Manager 和 Subordinate。
 
-- 用 Arm《Introduction to AMBA AXI4》建立学习主线。
-- 用 ARM IHI 0022H 中的 AXI4 章节补充精确定义。
-- ARM IHI 0022 Issue L 用于对照新版术语和通用思想。它主要描述 AMBA 5，不能把其中 AXI5 专属的 opcode、atomic、tag 当成 AXI4 必选功能。
-
-> **阅读主线：** 先掌握五通道握手，再学习一个地址如何展开成多个 beat（burst），最后理解 ID 如何把多笔 outstanding 事务区分开。
-
-> **术语说明：本文统一使用传统命名 Master / Slave**（新版规范称 Manager/Subordinate，含义相同；工程和 IP 文档中仍大量使用 Master/Slave，本文保持一致）。
-
-术语对照（其余术语）：
+**事务与传输拍**
 
 | 术语 | 含义 |
 |---|---|
@@ -115,7 +105,7 @@ r_fire = RVALID && RREADY;
 
 其中 `N = AxLEN + 1`。
 
-**初学者常把一个 data beat 叫成一个 transaction，之后统计 outstanding 时就会出错**——一个 burst（多拍数据）是一笔 transaction。
+统计 outstanding 时按事务计数。一笔 burst 只占一笔 transaction，其中可以包含一个或多个数据拍。
 
 ---
 
@@ -893,7 +883,7 @@ Exclusive read/write 对必须保持关键属性匹配，例如 ID、地址、�
 
 `AxCACHE` 描述事务可否 buffer、可否修改以及 cache 分配提示。它会影响 interconnect 能否拆分、合并、提前响应或经过缓存。
 
-初学者不要把它简单理解成"是否 cacheable"一个布尔值。实际使用应严格对照项目 memory map 和 Arm 编码表。
+查 `AxCACHE` 时，把各位的编码与项目 memory map 中相应地址区域的属性对照。
 
 ### 13.3 `AxQOS`
 
@@ -906,57 +896,6 @@ Exclusive read/write 对必须保持关键属性匹配，例如 ID、地址、�
 ### 13.5 `AxUSER/xUSER`
 
 用户自定义 sideband。只有系统双方明确约定含义时才有意义，通用 VIP 不应擅自解释。
-
----
-
-## 14. 总结
-
-### 14.1 学习重点排序
-
-| 优先级 | 必须掌握 |
-|---|---|
-| 🔴 高 | 五通道握手和阻塞稳定性 |
-| 🔴 高 | `LEN+1`、`2^SIZE`、三种 burst |
-| 🔴 高 | WLAST/RLAST 与实际握手 beat 计数 |
-| 🔴 高 | ID、outstanding、同 ID 保序 |
-| 🟡 中 | 非对齐、WSTRB、4KB 边界 |
-| 🟡 中 | 乱序与交织的区别 |
-| 🟡 中 | Response 与错误完整性 |
-| 🟢 进阶 | Exclusive、cache 属性、系统可见顺序 |
-
-### 14.2 易错点
-
-| 易错理解 | 正确理解 |
-|---|---|
-| `AxLEN` 就是 beat 数 | 实际 beat 数是 `AxLEN+1` |
-| 数据总线宽度就是每拍大小 | 每拍最大字节数由 `2^AxSIZE` 决定 |
-| W 与 AW 必须同拍 | 两通道独立，可任意先后 |
-| AXI4 的 W 通道带 ID | AXI4 没有 WID，写数据按 AW 顺序归属 |
-| 每拍 WVALID 都计数 | 只在 `WVALID && WREADY` 计数 |
-| 只在最后看 RRESP | 每个 R beat 都有 RRESP |
-| 不同 ID 也必须按发出顺序返回 | 不同 ID 可以乱序 |
-| 同一 ID 可以乱序返回 | 同一 ID、同一目标必须保序 |
-| Response 出错就可以少发 beat | 错误也必须保持协议完整和正确 LAST |
-| Exclusive write 返回 OKAY 是普通成功 | 通常表示 exclusive 条件失败、未更新 |
-| Burst 可以跨 4KB | AXI burst 不允许跨 4KB |
-| VALID 可以等 READY | Source 不允许形成这种依赖 |
-| 非对齐首拍传满 SIZE 字节 | 首拍只到下一个对齐边界，有效字节 = SIZE - (addr mod SIZE) |
-| lane 起点用地址 mod SIZE 算 | lane 起点用地址 mod 总线字节数（物理车道） |
-
-### 14.3 最重要的 12 条规则
-
-1. AXI4 仍使用五个独立 VALID/READY 通道。
-2. Transfer 只发生在 `VALID && READY` 的上升沿。
-3. Transaction 由地址、多个数据 beat 和可能的响应组成。
-4. beat 数等于 `AxLEN+1`。
-5. 每 beat 最大字节数等于 `2^AxSIZE`。
-6. Burst 类型为 FIXED、INCR 或 WRAP。
-7. Burst 不允许跨 4KB 边界。
-8. 写地址和写数据没有固定到达关系。
-9. AXI4 没有 WID，写数据按 AW 事务顺序发送。
-10. 同 ID 响应保序，不同 ID 可以乱序。
-11. WLAST/RLAST 必须与实际握手的最后 beat 对齐。
-12. 读响应逐拍 RRESP，写响应整笔一个 BRESP。
 
 ---
 

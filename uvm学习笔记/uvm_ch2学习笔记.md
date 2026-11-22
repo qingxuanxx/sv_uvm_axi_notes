@@ -1,12 +1,11 @@
 # UVM实战 第 2 章学习笔记：一个简单的 UVM 验证平台
-> **核心结论**：完整的 UVM 平台把“产生激励、驱动信号、监测接口、预测结果和自动比较”拆成独立组件，再通过 transaction、TLM 端口和 phase 连接起来。sequence 决定发送什么，driver 决定怎样发送，monitor 负责把信号还原为 transaction，scoreboard 负责判断 DUT 是否正确。
->
-> **记忆主线**：driver -> factory -> objection -> virtual interface -> transaction -> env -> monitor -> agent -> reference model -> scoreboard -> field automation -> sequencer/sequence -> base_test -> 命令行启动 test。
+
+sequence 描述要发送的事务，driver 把事务转换成 DUT 的接口信号。输出端的 monitor 采样响应，scoreboard 将实际结果与参考模型的期望结果进行比较。
 
 ---
 
 ## 2.0 本章定位
-第 1 章回答“为什么需要 UVM”，第 2 章开始回答“怎样搭建 UVM 验证平台”。 教材没有直接给出最终平台，而是从一个只有 driver 的环境开始，逐步加入新机制。 这种增量方式非常重要，因为每次增加的组件都对应一个明确问题。
+教材从一个 driver 开始搭平台，再逐步加入下表中的组件和机制。
 
 | 增量步骤 | 解决的问题 |
 |----------|------------|
@@ -24,11 +23,7 @@
 | sequence/sequencer | 如何把激励生成与信号驱动分离 |
 | base_test/test | 如何组织并从命令行选择测试用例 |
 
-> **本章最终目标**：看懂一棵完整 UVM 树，并能解释树中每个结点为什么存在。
-
-### 零基础阅读提示
-
-本章代码最多，第一次阅读建议按数据流看，不要一开始就背所有宏：
+### 一笔事务怎样经过验证平台
 
 1. sequence 产生 transaction。
 2. sequencer 把 transaction 交给 driver。
@@ -36,12 +31,12 @@
 4. monitor 再把信号恢复成 transaction。
 5. model 产生期望值，scoreboard 完成比较。
 
-看到 `type_id::create()` 时先读成“创建对象”；看到 `connect()` 时读成“接线”；看到 `raise/drop_objection()` 时读成“测试还没结束/现在可以结束”。
+在示例代码中，`type_id::create()` 通过 factory 创建实例，`connect()` 连接端口，`raise_objection()` 和 `drop_objection()` 标记测试活动的开始和完成。
 
 ---
 
-## 2.1 验证平台的组成（🔴 高）
-### 2.1.1 验证平台的四项基本能力（🔴 高）
+## 2.1 验证平台的组成
+### 2.1.1 验证平台的四项基本能力
 验证平台用于找出 DUT 中的 bug。 一个最基本的验证平台需要具备四项能力。
 
 | 能力 | 对应组件 | 核心问题 |
@@ -65,7 +60,7 @@ scoreboard 比较时需要两个输入：
 1. reference model 产生的期望 transaction。
 2. 输出 monitor 采集到的实际 transaction。
 
-### 2.1.2 简单平台的数据流（🔴 高）
+### 2.1.2 简单平台的数据流
 ```mermaid
 flowchart LR
     S[激励源] --> D[driver]
@@ -90,8 +85,7 @@ flowchart LR
     F --> G[实际 transaction]
 ```
 **期望路径**
-期望路径是软件预测路径：同一个输入 transaction 不经过 DUT，而是交给 reference model 计算正确答案。
-这条路用来回答：“理论上应该得到什么结果？”
+参考模型根据输入事务计算期望结果。
 
 ```mermaid
 flowchart LR
@@ -99,9 +93,8 @@ flowchart LR
     B --> C[期望 transaction]
     C --> D[scoreboard]
 ```
-两条路径最后在 scoreboard 汇合。
-> **关键**：reference model 不是用来“再实现一个 RTL”，而是用较高抽象层次描述正确功能。
-### 2.1.3 典型 UVM 平台（🔴 高）
+scoreboard 比较两条路径的结果。参考模型按规格描述功能，可以用比 RTL 更高的抽象层次实现。
+### 2.1.3 典型 UVM 平台
 完整平台通常包含输入 agent 和输出 agent。
 
 | 组件 | 输入端 agent | 输出端 agent |
@@ -139,8 +132,8 @@ scoreboard 自己不产生数据，它只负责接收 expected 与 actual，然�
 
 ---
 
-## 2.2 只有 driver 的验证平台（🟡 中）
-### 2.2.1 最简单的验证平台（🟡 中）
+## 2.2 只有 driver 的验证平台
+### 2.2.1 最简单的验证平台
 **教材 DUT**
 本章使用一个非常简单的环回 DUT。 输入有效时，DUT 把 `rxd` 延迟后送到 `txd`，并把 `rx_dv` 送到 `tx_en`。
 ```systemverilog
@@ -267,7 +260,7 @@ function new(string name, uvm_component parent);
     super.new(name, parent);      // 必须先完成父类构造
 endfunction
 ```
-`name` 不是类名，而是实例名。 同一个类可以创建多个实例，每个实例应有自己的 name。 `parent` 决定组件挂到 UVM 树的哪个位置。
+`name` 是实例名，同一个类的多个实例可以分别命名。`parent` 决定实例在 UVM 组件树中的位置。
 **main_phase**
 UVM 使用 phase 管理组件生命周期。 `main_phase` 是任务 phase，可以消耗仿真时间。 driver 的主要运行行为通常放在 `main_phase` 或其他 run-time phase 中。 典型耗时语句包括：
 
@@ -312,7 +305,7 @@ UVM 日志通常自动包含：
 `uvm_info("PATH", get_full_name(), UVM_LOW)
 ```
 与普通打印相比，UVM 日志更容易过滤、统计和定位。
-### 2.2.2 加入 factory 机制（🟡 中）
+### 2.2.2 加入 factory 机制
 **component 注册**
 要让 UVM factory 认识一个 component，需要注册类型。
 ```systemverilog
@@ -333,13 +326,13 @@ endclass
 > **规则**：派生自 `uvm_component` 的自定义 component 通常使用 `uvm_component_utils`。
 
 **run_test**
-最初的示例手工 new driver，并显式调用 `main_phase`。 这并没有真正使用 UVM 的生命周期管理。 加入 factory 注册后，可以写：
+最初的示例用 `new` 创建 driver，并手动调用 `main_phase`。注册类型后，可以通过 `run_test()` 启动 UVM 的阶段调度。
 ```systemverilog
 initial begin
     run_test("my_driver");        // 按注册类型名创建测试顶层
 end
 ```
-`run_test` 会启动 UVM phase 机制。 本章初期把 driver 临时作为树根，仅用于展示自动创建和 phase 调用。 无论传给 `run_test` 的类型是什么，UVM 创建的根实例名通常是： `uvm_test_top` 需要区分：
+这个例子把 driver 作为测试顶层。`run_test()` 按注册的类型名创建实例 `uvm_test_top`，将它挂到 `uvm_top` 下。下表区分类型名、实例名和句柄。
 
 | 名称 | 示例 | 作用 |
 |------|------|------|
@@ -349,7 +342,7 @@ end
 **为什么要使用 type_id::create**
 普通 SystemVerilog 创建： `drv = new("drv", this);` UVM component 推荐创建： `drv = my_driver::type_id::create("drv", this);` 二者都能创建对象，但 `type_id::create` 会经过 factory。 只有经过 factory 创建，类型替换机制才有机会生效。
 > **工程规则**：UVM 组件注册用 utils 宏，创建用 `type_id::create`。
-### 2.2.3 加入 objection 机制（🟡 中）
+### 2.2.3 加入 objection 机制
 **为什么 main_phase 刚开始就结束**
 UVM 不会因为某个 component 的 `main_phase` 仍有后续代码，就自动一直等待。 如果当前任务 phase 中没有 objection，UVM 可以结束该 phase，并终止仍在其中运行的进程。 因此，driver 可能只打印“main_phase is called”，还没来得及等待时钟就被结束。
 **raise 与 drop**
@@ -406,7 +399,7 @@ sequenceDiagram
     Sq->>Uvm: drop_objection  计数器=0，可以结束
     Uvm->>Drv: 结束 main_phase
 ```
-### 2.2.4 加入 virtual interface（🔴 高）
+### 2.2.4 加入 virtual interface
 **为什么不能写绝对层次路径**
 下面的写法把 driver 与 `top_tb` 层次绑定：
 ```systemverilog
@@ -540,8 +533,8 @@ set 和 get 需要同时匹配（三把钥匙必须同时对上）：
 
 ---
 
-## 2.3 为验证平台加入各个组件（🔴 高）
-### 2.3.1 加入 transaction（🔴 高）
+## 2.3 为验证平台加入各个组件
+### 2.3.1 加入 transaction
 **transaction 的意义**
 真实协议通常以帧、包或命令为单位交换信息，而不是孤立的 bit 或 byte。 transaction 用一个对象表示一次有意义的数据交换。 以太网 transaction 可以包含：
 
@@ -615,7 +608,7 @@ task my_driver::drive_one_pkt(my_transaction tr);
 endtask
 ```
 这一过程叫 serialization 或 packing。 monitor 执行相反的 deserialization 或 unpacking。
-### 2.3.2 加入 env（🔴 高）
+### 2.3.2 加入 env
 **为什么需要 env**
 `run_test` 只创建一个测试顶层。 完整平台却有 driver、monitor、model 和 scoreboard 等多个组件。 因此需要一个容器统一创建这些组件。 UVM 中这个容器通常派生自 `uvm_env`。
 ```systemverilog
@@ -648,7 +641,7 @@ endclass
 ```
 那么 config_db set 的目标路径也必须更新。 这是初学时最常见的 virtual interface 获取失败原因之一。
 > **调试方法**：使用 `get_full_name()` 打印真实组件路径，不要凭记忆猜路径。
-### 2.3.3 加入 monitor（🔴 高）
+### 2.3.3 加入 monitor
 **monitor 的职责**
 monitor 与 driver 方向相反。
 
@@ -691,14 +684,14 @@ monitor 不需要自己 raise objection。 它可以一直运行，phase 结束�
 **为什么输入端也需要 monitor**
 driver 已经拥有输入 transaction，看起来可以直接送给 reference model。 教材仍推荐使用 input monitor，原因包括：
 
-- monitor 看到的是 DUT 引脚上真正发生的数据。
+- monitor 记录 DUT 引脚上实际发生的传输。
 - driver 与 monitor 可由不同人员实现，形成交叉检查。
 - 能发现 driver 串行化或接口时序错误。
 - 更适合把模块级平台复用到系统级。
 - reference model 不必依赖 driver 内部实现。
 
 > **原则**：预测路径最好使用“实际送到 DUT 的事务”，而不是“本来打算送的事务”。
-### 2.3.4 封装成 agent（🔴 高）
+### 2.3.4 封装成 agent
 **agent 封装协议组件**
 driver、monitor 和 sequencer 都围绕同一接口协议工作。 UVM 通常把它们封装成 agent。 不同 agent 通常代表不同协议或接口实例。
 ```systemverilog
@@ -760,7 +753,7 @@ endfunction
 ```
 虽然理论上可在 new 中创建子组件，但会让配置读取和条件构建变得困难。
 > **约定**：component 统一在 `build_phase` 中创建。
-### 2.3.5 加入 reference model（🔴 高）
+### 2.3.5 加入 reference model
 **reference model 的作用**
 reference model 根据输入 transaction 计算期望 transaction。 本章 DUT 只是转发数据，因此 model 只复制输入事务。 复杂项目中的 model 可能：
 
@@ -871,17 +864,15 @@ endfunction
 > **完整链路**：monitor `ap.write`（推）→ FIFO 暂存 → model `port.get`（拉）→ 处理 → model `ap.write` → scoreboard。
 
 **agent 暴露 monitor 端口**
-env 不必深入访问 `i_agt.mon.ap`。 agent 可以对外暴露统一的 `ap`。
+agent 可以把 monitor 的 analysis port 暴露为自己的 `ap`。
 ```systemverilog
 function void my_agent::connect_phase(uvm_phase phase);
     super.connect_phase(phase);
     ap = mon.ap;                  // agent.ap 指向 monitor.ap
 endfunction
 ```
-由于 agent 的 connect_phase 先于 env 的 connect_phase 执行，env 连接时 `i_agt.ap` 已有效。
-
-> **意义**：封装。 env 只需连 `i_agt.ap`，不必深入 `i_agt.mon.ap`。 以后 agent 内部结构变化，外部连接不用改。
-### 2.3.6 加入 scoreboard（🔴 高）
+agent 的 `connect_phase` 先于 env 执行。因此 env 连接 `i_agt.ap` 时，它已经指向 monitor 的端口。
+### 2.3.6 加入 scoreboard
 **scoreboard 的两个输入**
 scoreboard 需要：
 
@@ -955,7 +946,7 @@ endtask
 | `uvm_error` | 明确错误 | 计数并继续 |
 | `uvm_fatal` | 无法继续的平台错误 | 结束仿真 |
 
-### 2.3.7 加入 field automation（🟡 中）
+### 2.3.7 加入 field automation
 **为什么需要字段自动化**
 没有自动化时，每个 transaction 都要手写：
 
@@ -1040,12 +1031,10 @@ data_array[12..13]= 08 00               ← ether_type
 - 深拷贝需求复杂时应检查默认 copy 行为。
 - 大型项目可能选择手写关键方法。
 
-本章重点是理解自动化机制，不是要求所有项目一律使用。
-
 ---
 
-## 2.4 UVM 的终极大作：sequence（🔴 高）
-### 2.4.1 在验证平台中加入 sequencer（🔴 高）
+## 2.4 用 sequence 组织激励
+### 2.4.1 在验证平台中加入 sequencer
 **为什么把激励生成移出 driver**
 规范平台中：
 
@@ -1078,7 +1067,7 @@ class my_driver extends uvm_driver #(my_transaction);
 endclass
 ```
 参数化后，driver 内建的 `req` 句柄就是 `my_transaction` 类型。
-### 2.4.2 sequence 机制（🔴 高）
+### 2.4.2 sequence 机制
 **sequence 定义**
 ```systemverilog
 class my_sequence extends uvm_sequence #(my_transaction);
@@ -1205,7 +1194,7 @@ task my_env::main_phase(uvm_phase phase);
 endtask
 ```
 `start` 的参数告诉 sequence 把 transaction 发给哪个 sequencer。
-### 2.4.3 default_sequence 的使用（🔴 高）
+### 2.4.3 default_sequence 的使用
 本书使用 config_db 设置 sequencer 某个 phase 的 default sequence。 default_sequence 是"预约剧本"：提前用 config_db 告诉 sequencer"你的 main_phase 一到，自动跑这个 sequence"，不用手工 start。
 ```systemverilog
 uvm_config_db#(uvm_object_wrapper)::set(
@@ -1267,8 +1256,8 @@ endtask
 
 ---
 
-## 2.5 建造测试用例（🔴 高）
-### 2.5.1 加入 base_test（🔴 高）
+## 2.5 建造测试用例
+### 2.5.1 加入 base_test
 **为什么 test 才是树根**
 教学过程中的树根依次是 driver、env。 实际平台通常让 `uvm_test` 派生类作为根类型。 base_test 负责：
 
@@ -1337,7 +1326,7 @@ uvm_test_top : my_caseN / base_test    ← 树根（run_test 创建，动态替�
         └── mon : my_monitor            ← 采输出（passive 只有 monitor）
 ```
 transaction、sequence 和 FIFO 中暂存的对象不是这棵 component 树的普通结点。
-### 2.5.2 UVM 中测试用例的启动（🔴 高）
+### 2.5.2 UVM 中测试用例的启动
 **测试用例不应修改公共平台**
 随着验证推进，test 数量会不断增加。 新增 test 不应破坏已存在 test。 推荐结构：
 ```text
@@ -1502,17 +1491,3 @@ endfunction
 5. analysis_port 是否写入 FIFO。
 6. model/scoreboard 的 blocking_get 是否返回。
 7. objection 是否因未 drop 而保持非零。
-
----
-
-## 本章总结（2.1-2.5）
-
-### 学习重点排序
-
-| 优先级 | 必须掌握 |
-|--------|----------|
-| 🔴 高 | component/object 的区别及两类注册宏 |
-| 🔴 高 | build、connect、main、report phase 的职责 |
-| 🔴 高 | virtual interface 与 config_db 的传递方式 |
-| 🔴 高 | sequence、sequencer、driver 的 item 握手 |
-| 🟡 中 | agent、model、scoreboard 和 TLM 数据流 |

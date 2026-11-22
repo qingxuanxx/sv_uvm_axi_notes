@@ -1,7 +1,6 @@
 # UVM实战 第 9 章学习笔记：UVM 中代码的可重用性
-> **核心结论**：可重用性不是把一个类做得无所不能，而是稳定公共结构、暴露小而明确的扩展点，并把模块级专属资源放在合适层次。callback 处理局部行为插入，factory 替换完整实现，参数化类抽象类型/位宽，芯片级重用则重新组合 env、寄存器模型和 sequence。
->
-> **记忆主线**：公共功能留在基类 -> 变化点用 callback/factory/config 暴露 -> sequence 保持小而专一 -> 模块 env 不绑定芯片级资源 -> 芯片层重新组合接口、寄存器模型和 virtual sequence。
+
+在已有 driver 中插入一次错误注入，可以在驱动流程里预留 callback。如果测试要换用另一种 driver 实现，可以使用 factory override。模块级 env 接入芯片平台时，还要重新连接接口和寄存器模型。
 
 ---
 
@@ -10,7 +9,7 @@
 | 章节 | 核心问题 |
 |------|----------|
 | 9.1 | callback 如何在不修改组件源码时插入行为 |
-| 9.2 | 为什么“小而美”比万能类更容易复用 |
+| 9.2 | 如何把不同的测试场景拆成可组合的 sequence |
 | 9.3 | 参数化类如何适配类型、地址和数据位宽 |
 | 9.4 | 模块级 env 如何迁移到芯片级验证平台 |
 可重用性有多个层次：
@@ -27,21 +26,19 @@
 
 越往后，对接口稳定性、配置能力和层次边界的要求越高。
 
-### 零基础阅读提示
+### 按修改内容选择扩展方式
 
-- callback 是在固定流程中预留的小钩子，适合局部修改。
-- factory override 是把整个实现类换掉，适合算法整体变化。
-- sequence 负责测试流程，不能因为 callback 很灵活就把 sequence 全部取消。
+- 在组件的固定步骤插入一段行为，用 callback。
+- 替换一个通过 factory 创建的实例，用 factory override。
+- 安排激励的先后顺序和接口间的配合，用 sequence。
 - 参数化类解决静态类型或位宽差异，运行时开关更适合配置对象。
-- block 到 chip 的复用不是原样搬运，而是保留模块内部能力、在芯片层重新接线。
-
-遇到“应该用哪种机制”时，先问变化是局部动作、完整实现、测试流程，还是简单参数，再做选择。
+- 将 block env 接入 chip 时，保留模块内部的连接，在芯片层重新连接接口和寄存器模型。
 
 ---
 
-## 9.1 callback 机制（🟡 中）
+## 9.1 callback 机制
 
-### 9.1.1 广义的 callback 函数（🟡 中）
+### 9.1.1 广义的 callback 函数
 callback 是框架在预定时机主动调用用户扩展逻辑。
 SystemVerilog 的 `post_randomize()` 是最简单的 callback。
 手工计算 CRC：
@@ -86,7 +83,7 @@ callback      : library/framework calls user extension
 
 ---
 
-### 9.1.2 callback 机制的必要性（🟡 中）
+### 9.1.2 callback 机制的必要性
 验证平台开发者无法预知所有使用者需求。
 成熟 VIP 的 driver 在发送 transaction 前，用户可能希望：
 - 写入包序号。
@@ -120,7 +117,7 @@ callback 适合“小范围行为差异”。
 
 ---
 
-### 9.1.3 UVM 中 callback 机制的原理（🟡 中）
+### 9.1.3 UVM 中 callback 机制的原理
 仅定义一个 virtual 方法不够。
 假设从 `my_driver` 派生 `new_driver` 并重写 `pre_tran()`，但验证平台仍实例化 `my_driver`，新方法不会运行。
 UVM callback 引入两个角色：
@@ -151,7 +148,7 @@ callback pool for this driver
 
 ---
 
-### 9.1.4 callback 机制的使用（🟡 中）
+### 9.1.4 callback 机制的使用
 
 **第一步：定义 callback 基类**
 
@@ -288,7 +285,7 @@ callback B: corrupt payload
 
 ---
 
-### 9.1.5 子类继承父类的 callback 机制（🟢 低）
+### 9.1.5 子类继承父类的 callback 机制
 从已有 driver 派生新 driver 时，希望继续使用针对父类注册的 callback。
 
 ```systemverilog
@@ -322,7 +319,7 @@ endclass
 
 ---
 
-### 9.1.6 使用 callback 实现所有测试用例（🟡 中）
+### 9.1.6 使用 callback 实现所有测试用例
 理论上可以把 transaction 生成、objection 和驱动流程都放入 callback。
 
 ```systemverilog
@@ -352,7 +349,7 @@ callback : 在稳定流程的特定点插入小变化
 
 ---
 
-### 9.1.7 callback、sequence 和 factory 的选择（🟡 中）
+### 9.1.7 callback、sequence 和 factory 的选择
 
 | 变化需求 | 推荐机制 |
 |----------|----------|
@@ -377,28 +374,20 @@ sequence 的优势：
 
 ---
 
-## 9.2 功能的模块化：小而美（🟢 低）
+## 9.2 功能的模块化：小而美
 
-### 9.2.1 Linux 的设计哲学：小而美（🟢 低）
-“小而美”的核心是每个模块只做好一件事，并通过明确接口组合。
-验证代码中的表现：
+### 9.2.1 Linux 的设计哲学：小而美
+把验证代码按职责拆开后，可以单独测试各个部分，也可以在不同场景下重新组合。
 - 一个 sequence 对应一个清晰场景。
 - 一个 function 完成一个明确计算。
 - 一个 callback 修改一个局部行为。
 - 一个配置对象保存一组相关参数。
 - component 只承担所属层次职责。
-好处：
-- 更容易阅读。
-- 更容易单独测试。
-- 更容易组合。
-- 修改时影响范围小。
-- 名字本身就能说明用途。
-“小”不等于复制粘贴。
-公共部分仍应提取到基类、工具函数或共享 sequence。
+多个场景共用的步骤可提取为基类方法、工具函数或共享 sequence。
 
 ---
 
-### 9.2.2 小而美与 factory 机制的重载（🟢 低）
+### 9.2.2 小而美与 factory 机制的重载
 不要在一个类中用大量 if/else 处理所有项目、协议和异常。
 不推荐：
 
@@ -432,8 +421,8 @@ factory 与小类结合，能让测试只声明差异。
 
 ---
 
-### 9.2.3 放弃建造强大 sequence 的想法（🟢 低）
-万能 sequence 常包含大量参数：
+### 9.2.3 放弃建造强大 sequence 的想法
+把多个场景合进一个 sequence 后，常常要加很多配置项。
 - 正常包还是错误包。
 - 随机生成还是文件读取。
 - 单文件还是多文件。
@@ -479,9 +468,9 @@ endtask
 
 ---
 
-## 9.3 参数化的类（🟡 中）
+## 9.3 参数化的类
 
-### 9.3.1 参数化类的必要性（🟡 中）
+### 9.3.1 参数化类的必要性
 参数化类把“算法结构”与“所处理的类型或位宽”分离。
 UVM sequence：
 
@@ -516,7 +505,7 @@ class bus_sequence extends uvm_sequence #(
 
 ---
 
-### 9.3.2 UVM 对参数化类的支持（🟡 中）
+### 9.3.2 UVM 对参数化类的支持
 
 **参数化 transaction**
 
@@ -618,9 +607,9 @@ factory override 也必须针对相同参数化基类的兼容派生类型。
 
 ---
 
-## 9.4 模块级到芯片级的代码重用（🟢 低）
+## 9.4 模块级到芯片级的代码重用
 
-### 9.4.1 基于 env 的重用（🟢 低）
+### 9.4.1 基于 env 的重用
 假设芯片由 A、B、C 三个模块串联。
 模块级验证时，每个模块有自己的输入 active agent 和输出 monitor。
 
@@ -712,7 +701,7 @@ cfg.in_chip = 1;
 
 ---
 
-### 9.4.2 寄存器模型的重用（🟢 低）
+### 9.4.2 寄存器模型的重用
 模块级和芯片级的配置总线拓扑通常不同。
 模块级：
 
@@ -805,7 +794,7 @@ env_c.p_rm = chip_rm.c_rm;
 
 ---
 
-### 9.4.3 virtual sequence 与 virtual sequencer（🟡 中）
+### 9.4.3 virtual sequence 与 virtual sequencer
 模块级 virtual sequencer 往往包含模块测试专用资源。
 例如内部模块 B 的模块级 virtual sequencer 可能同时保存：
 - B 输入 sequencer。
@@ -909,9 +898,9 @@ cfg_seq.start(null);
 
 ---
 
-## 9.5 可重用验证平台设计清单（🟡 中）
+## 9.5 可重用验证平台设计清单
 
-### 9.5.1 VIP 开发者应提供（🟡 中）
+### 9.5.1 VIP 开发者应提供
 - 稳定 transaction 定义。
 - 可配置 active/passive agent。
 - 明确的 analysis port/export。
@@ -921,7 +910,7 @@ cfg_seq.start(null);
 - 不依赖具体 test 层次的 sequence。
 - 错误处理与调试日志。
 
-### 9.5.2 block env 不应硬编码（🟡 中）
+### 9.5.2 block env 不应硬编码
 - `uvm_test_top` 绝对路径。
 - 芯片级总线 agent。
 - 芯片 root register model。
@@ -929,7 +918,7 @@ cfg_seq.start(null);
 - 只在某个 test 存在的 virtual sequencer。
 - 外部模块内部句柄。
 
-### 9.5.3 从 block 到 chip 的迁移步骤（🟡 中）
+### 9.5.3 从 block 到 chip 的迁移步骤
 1. 确认每个 agent 支持 active/passive。
 2. 为 env 暴露输入 export 和输出 analysis port。
 3. 删除芯片层重复 monitor。
@@ -941,7 +930,7 @@ cfg_seq.start(null);
 9. 复用边界普通 sequence。
 10. 重写系统级 virtual sequence 完成多接口协调。
 
-### 9.5.4 常见复用失败原因（🟡 中）
+### 9.5.4 常见复用失败原因
 
 | 现象 | 根因 |
 |------|------|
@@ -953,20 +942,3 @@ cfg_seq.start(null);
 | 参数化 vif get 失败 | set/get 的参数特化不一致 |
 | factory override 失败 | 参数化类型或 create 方式不匹配 |
 | 万能 sequence 难维护 | 参数和分支数量失控 |
-
----
-
-## 本章总结（9.1-9.4）
-
-### 学习重点排序
-
-| 优先级 | 必须掌握 |
-|--------|----------|
-| 🔴 高 | callback 基类、pool、register、do、add 五步 |
-| 🔴 高 | callback、sequence、factory 的适用边界 |
-| 🔴 高 | 小型 sequence 与组合式测试设计 |
-| 🔴 高 | block env 在芯片级的输入/输出 transaction 连接 |
-| 🔴 高 | 子寄存器模型通过顶层 map 重新组合 |
-| 🟡 中 | 参数化类、interface 和 factory 注册 |
-| 🟡 中 | 模块级与芯片级 virtual sequencer 的边界 |
-| 🟢 进阶 | callback 继承及复杂 RAL block 查找 |

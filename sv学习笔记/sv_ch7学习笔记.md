@@ -1,11 +1,10 @@
 # SystemVerilog 第 7 章学习笔记：线程以及线程间的通信
 
-> **核心结论**：第 7 章 7.1–7.6 的主线是：如何在 SystemVerilog 测试平台中创建线程、停止线程，并用事件、旗语、信箱完成线程间同步与数据交换。
-> **记忆方式**：**fork 管线程，disable 停线程，event 做通知，semaphore 管资源，mailbox 传事务。**
+`fork` 可以并行启动多个进程。进程之间可以用 `event` 通知对方，用 `semaphore` 控制共享资源的访问，用 `mailbox` 传递数据。
 
 ---
 
-## 7.1 线程的使用（🔴 高）
+## 7.1 线程的使用
 
 ### 7.1.1 三种 fork 对比
 
@@ -171,7 +170,7 @@ endprogram
 
 ---
 
-## 7.2 停止线程（🟡 中）
+## 7.2 停止线程
 
 ### 7.2.1 停止单个线程 — disable 标号
 
@@ -226,7 +225,7 @@ endtask
 
 ---
 
-## 7.3 线程间的通信 IPC（🔴 高）
+## 7.3 线程间的通信 IPC
 
 | 机制 | 主要用途 | 传数据？ | 排队？ |
 |------|---------|:---:|:---:|
@@ -236,7 +235,7 @@ endtask
 
 ---
 
-## 7.4 事件 Event（🔴 高）
+## 7.4 事件 Event
 
 类比：`->e` = 按门铃，`@e` = 等门铃响，`e.triggered` = 查看这一拍门铃是否响过。
 
@@ -355,7 +354,7 @@ wait(Generator::thread_count == 0);
 
 ---
 
-## 7.5 旗语 Semaphore（🔴 高）
+## 7.5 旗语 Semaphore
 
 控制对共享资源（如总线）的互斥访问：
 
@@ -391,7 +390,7 @@ endprogram
 
 ---
 
-## 7.6 信箱 Mailbox（🔴 高）
+## 7.6 信箱 Mailbox
 
 **Mailbox** = 线程安全的 FIFO，解耦生产者和消费者：
 
@@ -478,7 +477,7 @@ class Consumer {
 
 ---
 
-## 7.7 综合示例：event + semaphore + mailbox（🟡 中）
+## 7.7 综合示例：event + semaphore + mailbox
 
 ```systemverilog
 program automatic tb;
@@ -534,18 +533,3 @@ endprogram
 | `semaphore bus_sem` | Driver 使用总线前获取钥匙 |
 | `event gen_done` | Generator 完成通知主线程 |
 | `wait fork` | 等待所有派生线程结束 |
-
----
-
-## 7.8 本章总结
-
-### 7.8.1 学习重点排序
-
-| 优先级 | 必须掌握内容 |
-|:---:|------|
-| 🔴 | `fork...join / join_any / join_none` 的区别 |
-| 🔴 | `join_none` + `for` 循环变量必须拷贝 |
-| 🔴 | `disable label` 与 `disable fork` 的作用范围 |
-| 🔴 | `event` 的 `@e` 与 `wait(e.triggered())` 区别 |
-| 🟡 | `semaphore` 用于互斥访问共享资源 |
-| 🟡 | `mailbox` 用于线程间传递 transaction |
